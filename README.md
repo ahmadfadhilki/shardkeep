@@ -35,6 +35,33 @@ npm run dev
 Open http://localhost:5173 in your browser.
 Add `?debug` to the URL (http://localhost:5173/?debug) to see physics bodies.
 
+## Online features (Supabase): accounts, cloud save, leaderboard
+
+The game works without any of this (everyone plays as a guest, saving in the browser).
+To turn on accounts, cloud saves and the leaderboard:
+
+1. Create a free project at [supabase.com](https://supabase.com).
+2. In the dashboard open **SQL Editor → New query**, paste all of [`supabase/schema.sql`](supabase/schema.sql), and click **Run**.
+   It creates the `profiles`, `saves` and `leaderboard` tables with Row Level Security.
+3. Copy `.env.example` to `.env` and fill in **Project Settings → API**:
+   - `VITE_SUPABASE_URL`: the project URL, e.g. `https://abcd1234.supabase.co`
+   - `VITE_SUPABASE_ANON_KEY`: the **publishable / anon** key. **Never** the `service_role` / secret key:
+     everything starting with `VITE_` ends up inside the game for anyone to read. (The game refuses to start online mode with a secret key.)
+4. Restart `npm run dev`.
+
+How it works:
+
+| Who | Where progress is saved |
+|---|---|
+| Guest | This browser only (localStorage) |
+| Logged-in player | This browser first, then uploaded to Supabase a few seconds later. Uploaded right away after clearing a stage, after buying something, and on log out |
+
+- **Offline?** The game keeps saving locally and uploads when you're back online. On login, the newer of the cloud save and this device's save wins.
+- **Guest → account:** sign up from the same browser and your guest progress is copied to the new account on first login.
+- **Leaderboard:** your best clear time per stage. Only display names are public, never emails.
+- **Security:** every table has Row Level Security: you can read/write only your own save; everyone can read the leaderboard, but only add or improve their own score. Note that, as in any browser game, a determined player could still send a fake time; the database only rejects impossible ones (under 30 s).
+- All Supabase code is in `src/services/supabase.ts` and `src/services/saveService.ts`.
+
 ## How to build
 
 ```powershell

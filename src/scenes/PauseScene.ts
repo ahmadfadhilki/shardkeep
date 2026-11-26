@@ -4,6 +4,7 @@ import { isMuted, Sfx, toggleMute } from '../systems/Sfx';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Button, FONT, type PanelKey } from '../ui/Panel';
 import type { StageScene } from './StageScene';
+import { getAccount, logOut } from '../services/saveService';
 
 export interface PauseData {
   stageId: string;
@@ -48,8 +49,15 @@ export class PauseScene extends Phaser.Scene {
       ['Return to town', () => this.confirm.ask(`Return to town?\n${warn}`, () => this.quit())],
       [this.soundLabel(), () => this.toggleSound()],
     ];
+    // Logged-in players get "Log out" (just above Sound, which stays last).
+    if (getAccount()) {
+      options.splice(options.length - 1, 0, [
+        'Log out',
+        () => this.confirm.ask(`Log out of ${getAccount()!.displayName}?\n${warn}`, () => void this.logout()),
+      ]);
+    }
     options.forEach(([label, action], i) => {
-      const b = new Button(this, GAME_WIDTH / 2, 175 + i * 52, label, () => { Sfx.play('uiConfirm'); action(); }, 260, 38);
+      const b = new Button(this, GAME_WIDTH / 2, 165 + i * 46, label, () => { Sfx.play('uiConfirm'); action(); }, 260, 38);
       b.on('pointerover', () => this.focus(i));
       this.buttons.push(b);
     });
@@ -113,6 +121,14 @@ export class PauseScene extends Phaser.Scene {
     this.scene.stop('UI');
     this.scene.stop('Stage');
     this.scene.start('Hub');
+  }
+
+  /** Upload the save, sign out, and go back to the login screen. */
+  private async logout(): Promise<void> {
+    this.scene.stop('UI');
+    this.scene.stop('Stage');
+    await logOut();
+    this.scene.start('Login');
   }
 
   private soundLabel(): string {

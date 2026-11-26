@@ -8,6 +8,9 @@ import { getSave, heroSave, getParty } from '../systems/SaveData';
 import { STARS_PER_STAGE } from '../systems/StageRun';
 import { FONT } from '../ui/Panel';
 import { formatTime } from './StageSelectScene';
+import { submitBestTime } from '../services/saveService';
+import { Button } from '../ui/Panel';
+import type { LeaderboardData } from './LeaderboardScene';
 
 /** What StageScene hands to the Results screen. */
 export interface ResultsData {
@@ -116,7 +119,27 @@ export class ResultsScene extends Phaser.Scene {
     this.input.keyboard!.on('keydown-ENTER', go);
     this.input.keyboard!.on('keydown-E', go);
     this.input.keyboard!.on('keydown-SPACE', go);
-    this.input.on('pointerdown', go);
+    // Taps on a button (like Leaderboard) shouldn't also mean "continue".
+    this.input.on('pointerdown', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
+      if (over.length === 0) go();
+    });
+
+    this.postTime();
+  }
+
+  /** Send this clear to the leaderboard and say what happened. */
+  private postTime(): void {
+    const d = this.results;
+    const line = this.add.text(60, 320, 'Leaderboard: posting your time...', { fontFamily: FONT, fontSize: '14px', color: '#c9bde0' });
+    new Button(this, 160, 370, 'Leaderboard', () => {
+      this.scene.start('Leaderboard', { stageId: d.stageId, back: 'Hub' } satisfies LeaderboardData);
+    }, 200, 32);
+    void submitBestTime(d.stageId, d.time).then((r) => {
+      if (!this.scene.isActive()) return;
+      if (r === 'posted') line.setText('Leaderboard: time posted!').setColor('#b8f27a');
+      else if (r === 'offline') line.setText('Leaderboard: offline, will post later.').setColor('#ffcf5a');
+      else line.setText('Leaderboard: log in to post your times.');
+    });
   }
 
   update(): void {

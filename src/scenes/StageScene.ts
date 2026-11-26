@@ -19,6 +19,7 @@ import { getSave, grantXp, heroLevel, heroSave, saveGame, stageSave, getParty } 
 import { POTIONS, STAGE_CLEAR_XP, type PotionKind } from '../data/progression';
 import type { ResultsData } from './ResultsScene';
 import type { PauseData } from './PauseScene';
+import { flushCloudSave } from '../services/saveService';
 
 /**
  * Data passed to this scene by scene.start / scene.restart.
@@ -325,6 +326,7 @@ export class StageScene extends Phaser.Scene {
     save.coins += this.run.coins; // coins only reach the bank when you clear
     for (const id of getParty()) grantXp(id, STAGE_CLEAR_XP);
     saveGame();
+    void flushCloudSave(); // auto-save to the cloud after each stage (does nothing for guests)
 
     const results: ResultsData = {
       stageId: this.stage.id,

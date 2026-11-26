@@ -1,14 +1,23 @@
 import Phaser from 'phaser';
 import { COLORS, GAME_HEIGHT, GAME_WIDTH, IS_TOUCH } from '../config';
 import { getSave, hasSave, newGame } from '../systems/SaveData';
+import { getAccount, isOnlineAvailable, logOut } from '../services/saveService';
+import { Button } from '../ui/Panel';
 
 /**
  * The title screen: Continue (if a save exists) or New Game.
  * W/S or the mouse to choose, Enter or click to confirm.
  */
 export class TitleScene extends Phaser.Scene {
+  /** A message from the login screen (e.g. "your guest progress was copied"). */
+  private notice?: string;
+
   constructor() {
     super('Title');
+  }
+
+  init(data: { notice?: string }): void {
+    this.notice = data?.notice;
   }
 
   create(): void {
@@ -113,9 +122,33 @@ export class TitleScene extends Phaser.Scene {
     kb.on('keydown-ENTER', () => options[selected].action());
     kb.on('keydown-SPACE', () => options[selected].action());
     refresh();
+    this.drawAccountBar();
     if (IS_TOUCH) {
       this.add.text(cx, GAME_HEIGHT - 24, 'Touch controls on. Best played sideways, full screen.', { fontFamily: 'monospace', fontSize: '13px', color: COLORS.uiText })
         .setOrigin(0.5).setAlpha(0.7);
+    }
+  }
+
+  /** Top bar: who is playing, plus Log out (or Log in for guests). */
+  private drawAccountBar(): void {
+    const account = getAccount();
+    const who = account ? `Logged in as ${account.displayName}  (cloud save)` : 'Playing as Guest  (saved in this browser only)';
+    this.add.text(16, 16, who, { fontFamily: 'monospace', fontSize: '13px', color: account ? '#b8f27a' : COLORS.uiText }).setAlpha(0.85);
+
+    const label = account ? 'Log out' : isOnlineAvailable() ? 'Log in / Sign up' : '';
+    if (label) {
+      new Button(this, GAME_WIDTH - 90, 26, label, () => {
+        void (async () => {
+          if (account) await logOut(); // uploads unsaved progress first
+          this.scene.start('Login');
+        })();
+      }, 150, 28, 0xc9bde0);
+    }
+    if (this.notice) {
+      const t = this.add.text(GAME_WIDTH / 2, 320, this.notice, {
+        fontFamily: 'monospace', fontSize: '14px', color: '#1a1422', backgroundColor: '#b8f27a', padding: { x: 10, y: 5 },
+      }).setOrigin(0.5);
+      this.tweens.add({ targets: t, alpha: 0, delay: 4000, duration: 600, onComplete: () => t.destroy() });
     }
   }
 

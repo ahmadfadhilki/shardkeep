@@ -4,6 +4,7 @@ import { HEROES, type HeroDef } from '../data/heroes';
 import { heroAtk, POTIONS, WEAPON_PRICES, type PotionDef } from '../data/progression';
 import { getSave, heroSave, saveGame } from '../systems/SaveData';
 import { Sfx } from '../systems/Sfx';
+import { flushCloudSave } from '../services/saveService';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Button, Panel, type PanelKey } from './Panel';
 
@@ -191,6 +192,7 @@ export class ShopPanel extends Panel {
       save.coins -= price;
       item.give();
       saveGame();
+      void flushCloudSave(); // purchases go to the cloud immediately
       Sfx.play('buy');
       this.say('Thank you! Come again.', '#b8f27a');
       if (this.tab === 'Heroes') this.say(`${item.label().split(' ')[0]} joined your roster! Set up your party with Elder Bram (Tab).`, '#b8f27a');

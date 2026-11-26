@@ -24,6 +24,6 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.scene.start('Title');
+    this.scene.start('Login'); // login / guest choice comes before the title screen
   }
 }

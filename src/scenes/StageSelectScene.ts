@@ -79,6 +79,9 @@ export class StageSelectScene extends Phaser.Scene {
     });
 
     new Button(this, 70, 40, '< Town', () => this.goTo('Hub'), 100, 32, 0xc9bde0);
+    new Button(this, GAME_WIDTH - 90, 40, 'Leaderboard', () => {
+      this.goTo('Leaderboard', { stageId: STAGES[Math.min(this.selected, STAGES.length - 1)].id, back: 'StageSelect' });
+    }, 150, 32);
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 30, 'Tap / click a stage to start.   Keys: A/D choose, Enter start, Esc back', { fontFamily: FONT, fontSize: '13px', color: COLORS.uiText })
       .setOrigin(0.5).setAlpha(0.7);
 
