@@ -25,7 +25,10 @@
       }
       /* ...but the login form's text boxes must be typeable and selectable. */
       input { user-select: text; -webkit-user-select: text; touch-action: manipulation; }
-      #game { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+      /* Phaser centers the canvas itself (Scale.CENTER_BOTH). Don't also center it with flexbox:
+         Phaser's HTML layer (the login form) is positioned from the top-left of #game, and
+         extra CSS centering would push the form away from the canvas. */
+      #game { width: 100%; height: 100%; position: relative; }
       canvas { image-rendering: pixelated; }
 
       /* Phones held upright: ask the player to turn the phone sideways. */

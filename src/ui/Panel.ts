@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, DEPTH, GAME_HEIGHT, GAME_WIDTH } from '../config';
+import { COLORS, DEPTH, GAME_HEIGHT, GAME_WIDTH, IS_TOUCH } from '../config';
 import { Sfx } from '../systems/Sfx';
 
 /** Keys a panel understands. The scene that owns the panel translates real keys into these. */
@@ -98,7 +98,7 @@ export abstract class Panel {
     const titleText = scene.add
       .text(-width / 2 + 20, -height / 2 + 14, title, { fontFamily: FONT, fontSize: '20px', fontStyle: 'bold', color: COLORS.uiAccent });
     // Close button (bottom-right). Esc also closes.
-    const close = new Button(scene, width / 2 - 62, height / 2 - 26, 'Close (Esc)', () => this.close(), 100, 28, 0xc9bde0);
+    const close = new Button(scene, width / 2 - 62, height / 2 - 26, IS_TOUCH ? 'Close' : 'Close (Esc)', () => this.close(), 100, 28, 0xc9bde0);
     this.root.add([shade, bg, titleText, close]);
   }
 

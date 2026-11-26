@@ -106,7 +106,7 @@ export const HUB_NPCS: NpcDef[] = [
       'You keep XP even if your party falls. Coins only count when you clear.',
       'Landing normal hits fills your mana faster.',
       'Tilda knows heroes looking for work. Recruit them, then ask Elder Bram to set up your party.',
-      'Press Esc during a stage to pause. Press M anywhere to mute the sound.',
+      'The menu (Esc, or the Menu / II button) lets you change your controls and the sound.',
     ],
   },
 ];

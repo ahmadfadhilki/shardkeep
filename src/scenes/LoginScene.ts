@@ -24,7 +24,8 @@ export class LoginScene extends Phaser.Scene {
   async create(): Promise<void> {
     this.busy = false;
     this.cameras.main.setBackgroundColor(COLORS.background);
-    this.add.text(GAME_WIDTH / 2, 70, 'SHARDKEEP', { fontFamily: 'monospace', fontSize: '48px', fontStyle: 'bold', color: COLORS.uiAccent })
+    this.releaseKeyboard();
+    this.add.text(GAME_WIDTH / 2, 48, 'SHARDKEEP', { fontFamily: 'monospace', fontSize: '48px', fontStyle: 'bold', color: COLORS.uiAccent })
       .setOrigin(0.5).setShadow(3, 3, '#000000', 0, true, true);
 
     // Remembered login? Then go straight to the Title screen.
@@ -45,7 +46,7 @@ export class LoginScene extends Phaser.Scene {
     const online = isOnlineAvailable();
     // Plain HTML + inline styles. Each id is looked up below to read values / attach clicks.
     const html = `
-      <form id="login" style="width:360px;font-family:monospace;color:#f4ecff;background:#1a1422ee;border:2px solid #ffcf5a;border-radius:12px;padding:18px 22px;box-sizing:border-box">
+      <form id="login" style="width:${FORM_WIDTH}px;font-family:monospace;color:#f4ecff;background:#1a1422ee;border:2px solid #ffcf5a;border-radius:12px;padding:18px 22px;box-sizing:border-box">
         ${online ? `
         <div style="display:flex;gap:8px;margin-bottom:12px">
           <button type="button" id="tab-login" style="${tabStyle(true)}">Log in</button>
@@ -64,9 +65,11 @@ export class LoginScene extends Phaser.Scene {
         ` : `<p style="font-size:13px;line-height:1.5;margin:0 0 12px">Online features (accounts, cloud save, leaderboard) are not set up in this build. You can still play: progress is saved in this browser.</p>`}
         <button type="button" id="guest" style="${buttonStyle('#c9bde0')}">Play as Guest</button>
         <div style="font-size:11px;opacity:.6;margin-top:6px;text-align:center">Guest progress stays in this browser only.</div>
-        <div id="msg" style="min-height:34px;margin-top:10px;font-size:12px;line-height:1.4;text-align:center"></div>
+        <div id="msg" style="min-height:30px;margin-top:8px;font-size:12px;line-height:1.4;text-align:center"></div>
       </form>`;
-    this.form = this.add.dom(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 40).createFromHTML(html);
+    // Placed by its TOP-LEFT corner: the form's size isn't known yet when it's created,
+    // so "centered" (the default origin) would put it in the wrong place on some screens.
+    this.form = this.add.dom(GAME_WIDTH / 2 - FORM_WIDTH / 2, 92).createFromHTML(html).setOrigin(0, 0);
 
     const el = (id: string) => this.form.getChildByID(id) as HTMLElement | null;
     el('guest')?.addEventListener('click', () => this.guest());
@@ -78,6 +81,21 @@ export class LoginScene extends Phaser.Scene {
       e.preventDefault();
       void this.submit();
     });
+  }
+
+  /**
+   * The game "captures" its gameplay keys (WASD, Space, E...) so the browser
+   * doesn't scroll the page when you press them. But captured keys can't be
+   * typed into a text box! Scenes played earlier (e.g. before logging out)
+   * leave those captures behind, so we clear them here and switch capturing
+   * off while this screen is open.
+   */
+  private releaseKeyboard(): void {
+    const kb = this.input.keyboard;
+    if (!kb) return;
+    kb.clearCaptures();
+    kb.disableGlobalCapture();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => kb.enableGlobalCapture());
   }
 
   private setMode(mode: 'login' | 'signup'): void {
@@ -142,6 +160,9 @@ export class LoginScene extends Phaser.Scene {
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Title', { notice }));
   }
 }
+
+/** Width of the login form in game pixels. */
+const FORM_WIDTH = 360;
 
 // --- Tiny inline style helpers (plain CSS strings) ---
 const labelStyle = 'display:block;font-size:12px;margin:8px 0 4px;opacity:.85';

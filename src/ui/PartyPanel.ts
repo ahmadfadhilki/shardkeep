@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS } from '../config';
+import { COLORS, IS_TOUCH } from '../config';
 import { HEROES, MAX_PARTY, type HeroDef } from '../data/heroes';
 import { SKILLS } from '../data/skills';
 import { heroAtk, heroMaxHp, levelFromXp, MAX_LEVEL, skillCooldownAt, skillManaAt } from '../data/progression';
@@ -67,7 +67,7 @@ export class PartyPanel extends Panel {
 
     this.partyLine = this.text(left, this.height / 2 - 66, '', 14, COLORS.uiAccent);
     this.message = this.text(left, this.height / 2 - 40, '', 12, '#c9bde0').setWordWrapWidth(this.width - 180);
-    this.text(left, top + 2 * (CARD_H + 10) + 4, 'E: add/remove   Q: make leader\nFewer heroes = a harder (and braver) run!', 11, '#c9bde0').setAlpha(0.8);
+    this.text(left, top + 2 * (CARD_H + 10) + 4, (IS_TOUCH ? 'Tap a hero, then use the buttons.' : 'E: add/remove   Q: make leader') + '\nFewer heroes = a harder (and braver) run!', 11, '#c9bde0').setAlpha(0.8);
   }
 
   private get hero(): HeroDef {

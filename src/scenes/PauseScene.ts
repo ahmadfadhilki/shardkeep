@@ -4,23 +4,31 @@ import { isMuted, Sfx, toggleMute } from '../systems/Sfx';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Button, FONT, type PanelKey } from '../ui/Panel';
 import type { StageScene } from './StageScene';
-import { getAccount, logOut } from '../services/saveService';
+import { getAccount, isOnlineAvailable, logOut } from '../services/saveService';
+import type { ControlsSceneData } from './ControlsScene';
 
 export interface PauseData {
-  stageId: string;
+  /** Which scene is paused underneath: a stage (with its UI) or the town. */
+  from?: 'Stage' | 'Hub';
+  stageId?: string;
 }
 
 /**
- * PauseScene: opened with Esc during a stage. It sits on top of the paused
- * Stage + UI scenes (scene.pause freezes their update loop, tweens and timers).
+ * PauseScene: the menu (Esc, or the II / Menu button). It sits on top of the
+ * paused scene(s) (scene.pause freezes their update loop, tweens and timers).
  *
- *   Resume          (Esc also resumes)
- *   Restart stage   asks first: coins from this run are lost, XP is kept
- *   Return to town  asks first, same rule
+ * In a stage:                         In town:
+ *   Resume                              Resume
+ *   Reset room (if stuck)               Controls
+ *   Restart stage   (asks first)        Log out / Log in
+ *   Return to town  (asks first)        Quit to title
+ *   Controls                            Sound
+ *   Log out         (logged in only)
  *   Sound: On/Off   (M works anywhere too)
  */
 export class PauseScene extends Phaser.Scene {
   private stageId = '';
+  private from: 'Stage' | 'Hub' = 'Stage';
   private buttons: Button[] = [];
   private selected = 0;
   private confirm!: ConfirmDialog;
@@ -31,7 +39,8 @@ export class PauseScene extends Phaser.Scene {
   }
 
   init(data: PauseData): void {
-    this.stageId = data.stageId;
+    this.from = data.from ?? 'Stage';
+    this.stageId = data.stageId ?? '';
     this.buttons = [];
     this.selected = 0;
   }
@@ -41,29 +50,34 @@ export class PauseScene extends Phaser.Scene {
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x0a0710, 0.7);
     this.add.text(GAME_WIDTH / 2, 100, 'PAUSED', { fontFamily: FONT, fontSize: '40px', fontStyle: 'bold', color: COLORS.uiAccent }).setOrigin(0.5);
 
-    const warn = 'Coins picked up in this run will be lost.\n(XP you earned is already saved.)';
-    const options: [string, () => void][] = [
-      ['Resume', () => this.resume()],
-      ['Reset room (if stuck)', () => this.resetRoom()],
-      ['Restart stage', () => this.confirm.ask(`Restart the stage?\n${warn}`, () => this.restart())],
-      ['Return to town', () => this.confirm.ask(`Return to town?\n${warn}`, () => this.quit())],
-      [this.soundLabel(), () => this.toggleSound()],
-    ];
-    // Logged-in players get "Log out" (just above Sound, which stays last).
-    if (getAccount()) {
-      options.splice(options.length - 1, 0, [
-        'Log out',
-        () => this.confirm.ask(`Log out of ${getAccount()!.displayName}?\n${warn}`, () => void this.logout()),
-      ]);
+    const inStage = this.from === 'Stage';
+    const warn = inStage ? 'Coins picked up in this run will be lost.\n(XP you earned is already saved.)' : 'Your progress is saved.';
+    const options: [string, () => void][] = [['Resume', () => this.resume()]];
+    if (inStage) {
+      options.push(
+        ['Reset room (if stuck)', () => this.resetRoom()],
+        ['Restart stage', () => this.confirm.ask(`Restart the stage?\n${warn}`, () => this.restart())],
+        ['Return to town', () => this.confirm.ask(`Return to town?\n${warn}`, () => this.quit())],
+      );
     }
+    options.push(['Controls', () => this.openControls()]);
+    if (getAccount()) {
+      options.push(['Log out', () => this.confirm.ask(`Log out of ${getAccount()!.displayName}?\n${warn}`, () => void this.logout())]);
+    } else if (!inStage && isOnlineAvailable()) {
+      options.push(['Log in / Sign up', () => this.leaveTo('Login')]);
+    }
+    if (!inStage) options.push(['Quit to title', () => this.leaveTo('Title')]);
+    options.push([this.soundLabel(), () => this.toggleSound()]); // Sound stays last
     options.forEach(([label, action], i) => {
-      const b = new Button(this, GAME_WIDTH / 2, 165 + i * 46, label, () => { Sfx.play('uiConfirm'); action(); }, 260, 38);
+      const b = new Button(this, GAME_WIDTH / 2, 160 + i * 44, label, () => { Sfx.play('uiConfirm'); action(); }, 260, 38);
       b.on('pointerover', () => this.focus(i));
       this.buttons.push(b);
     });
     this.soundButton = this.buttons[this.buttons.length - 1];
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 40, 'W/S: choose    E/Enter: select    Esc: resume', { fontFamily: FONT, fontSize: '12px', color: COLORS.uiText })
-      .setOrigin(0.5).setAlpha(0.7);
+    if (!IS_TOUCH) {
+      this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 24, 'W/S: choose    E/Enter: select    Esc: resume', { fontFamily: FONT, fontSize: '12px', color: COLORS.uiText })
+        .setOrigin(0.5).setAlpha(0.7);
+    }
     this.confirm = new ConfirmDialog(this);
     this.focus(0);
 
@@ -100,10 +114,26 @@ export class PauseScene extends Phaser.Scene {
   }
 
   private resume(): void {
-    this.input.setDefaultCursor(IS_TOUCH ? 'default' : 'none');
-    this.scene.resume('UI');
-    this.scene.resume('Stage');
+    if (this.from === 'Stage') {
+      this.input.setDefaultCursor(IS_TOUCH ? 'default' : 'none');
+      this.scene.resume('UI');
+      this.scene.resume('Stage');
+    } else {
+      this.scene.resume('Hub');
+    }
     this.scene.stop();
+  }
+
+  /** Controls screen on top; this menu sleeps until it closes (it wakes us up). */
+  private openControls(): void {
+    this.scene.sleep();
+    this.scene.launch('Controls', { from: 'Pause' } satisfies ControlsSceneData);
+  }
+
+  /** From town: close the town and go to another screen. */
+  private leaveTo(scene: 'Login' | 'Title'): void {
+    this.scene.stop('Hub');
+    this.scene.start(scene);
   }
 
   /** Same as R on a keyboard: re-enter this room (puts push blocks back). */
@@ -125,14 +155,18 @@ export class PauseScene extends Phaser.Scene {
 
   /** Upload the save, sign out, and go back to the login screen. */
   private async logout(): Promise<void> {
-    this.scene.stop('UI');
-    this.scene.stop('Stage');
+    if (this.from === 'Stage') {
+      this.scene.stop('UI');
+      this.scene.stop('Stage');
+    } else {
+      this.scene.stop('Hub');
+    }
     await logOut();
     this.scene.start('Login');
   }
 
   private soundLabel(): string {
-    return `Sound: ${isMuted() ? 'Off' : 'On'}  (M)`;
+    return `Sound: ${isMuted() ? 'Off' : 'On'}${IS_TOUCH ? '' : '  (M)'}`;
   }
 
   private toggleSound(): void {

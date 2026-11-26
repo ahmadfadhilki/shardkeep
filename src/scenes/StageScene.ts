@@ -238,7 +238,7 @@ export class StageScene extends Phaser.Scene {
     this.party.heroes.forEach((h) => h.body.setVelocity(0, 0));
     this.scene.pause();
     this.scene.pause('UI');
-    this.scene.launch('Pause', { stageId: this.stage.id } satisfies PauseData);
+    this.scene.launch('Pause', { from: 'Stage', stageId: this.stage.id } satisfies PauseData);
   }
 
   /** Where the party appears in this room. */

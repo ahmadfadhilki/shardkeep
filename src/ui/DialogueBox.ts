@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, DEPTH, GAME_HEIGHT, GAME_WIDTH } from '../config';
+import { COLORS, DEPTH, GAME_HEIGHT, GAME_WIDTH, IS_TOUCH } from '../config';
 import { Sfx } from '../systems/Sfx';
 import { FONT } from './Panel';
 
@@ -38,7 +38,7 @@ export class DialogueBox {
     this.bodyText = scene.add.text(-w / 2 + 20, -h / 2 + 38, '', {
       fontFamily: FONT, fontSize: '15px', color: COLORS.uiText, wordWrap: { width: w - 40 }, lineSpacing: 4,
     });
-    this.arrow = scene.add.text(w / 2 - 18, h / 2 - 12, 'E >', { fontFamily: FONT, fontSize: '12px', color: COLORS.uiAccent }).setOrigin(1, 1);
+    this.arrow = scene.add.text(w / 2 - 18, h / 2 - 12, IS_TOUCH ? 'tap >' : 'E >', { fontFamily: FONT, fontSize: '12px', color: COLORS.uiAccent }).setOrigin(1, 1);
     this.root.add([bg, this.nameText, this.bodyText, this.arrow]);
     // Clicking anywhere on the box also advances.
     bg.setInteractive(new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h), Phaser.Geom.Rectangle.Contains).on('pointerdown', () => this.advance());

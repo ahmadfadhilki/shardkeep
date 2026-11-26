@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, DEPTH, GAME_HEIGHT, GAME_WIDTH, IS_TOUCH, TILE } from '../config';
 import { TouchControls } from '../ui/TouchControls';
+import { CONTROLS_CHANGED, getControlSettings } from '../systems/ControlSettings';
 import { HUB_NPCS, HUB_ROOM, type NpcDef } from '../data/hub';
 import { buildRoom, tileCenter } from '../systems/RoomBuilder';
 import { getSave, saveGame, getParty } from '../systems/SaveData';
@@ -8,6 +9,8 @@ import { ShopPanel } from '../ui/ShopPanel';
 import { PartyPanel } from '../ui/PartyPanel';
 import { FONT, type Panel, type PanelKey } from '../ui/Panel';
 import { DialogueBox } from '../ui/DialogueBox';
+import { Button } from '../ui/Panel';
+import type { PauseData } from './PauseScene';
 import { Sfx } from '../systems/Sfx';
 
 const WALK_SPEED = 170;
@@ -104,7 +107,7 @@ export class HubScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(DEPTH.ui - 1);
     this.coinText = this.add.text(16, 40, '', { fontFamily: FONT, fontSize: '14px', color: '#ffd23f' })
       .setScrollFactor(0).setDepth(DEPTH.ui - 1);
-    this.add.text(GAME_WIDTH - 16, GAME_HEIGHT - 14, IS_TOUCH ? 'Left thumb: walk    TALK: speak    PARTY: party setup' : 'WASD: walk    E: talk    Tab: party setup    M: sound on/off', { fontFamily: FONT, fontSize: '12px', color: COLORS.uiText })
+    this.add.text(GAME_WIDTH - 16, GAME_HEIGHT - 14, IS_TOUCH ? 'Left thumb: walk    TALK: speak    PARTY: party setup' : 'WASD: walk    E: talk    Tab: party setup    Esc: menu', { fontFamily: FONT, fontSize: '12px', color: COLORS.uiText })
       .setOrigin(1, 1).setScrollFactor(0).setDepth(DEPTH.ui - 1).setAlpha(0.7);
 
     // --- Panels ---
@@ -113,20 +116,25 @@ export class HubScene extends Phaser.Scene {
     for (const p of [this.shop, this.partyPanel]) p.onClose = () => (this.panel = null);
     this.partyPanel.onPartyChanged = () => this.buildParty(this.leader.x, this.leader.y);
     this.dialogue = new DialogueBox(this);
-    this.touch = IS_TOUCH
-      ? new TouchControls(
-          this,
-          [
-            { id: 'talk', x: GAME_WIDTH - 92, y: GAME_HEIGHT - 100, r: 48, label: 'TALK', color: 0xffcf5a },
-            { id: 'party', x: GAME_WIDTH - 70, y: GAME_HEIGHT - 220, r: 30, label: 'PARTY', color: 0xc9bde0 },
-          ],
-          new Phaser.Geom.Rectangle(0, 70, GAME_WIDTH * 0.5, GAME_HEIGHT - 70),
-        )
-      : null;
+    // Menu (same menu as in a stage): Controls, Log out, Quit to title, Sound.
+    new Button(this, GAME_WIDTH - 60, 24, 'Menu', () => this.openMenu(), 90, 30, 0xc9bde0)
+      .setScrollFactor(0, 0, true).setDepth(DEPTH.ui - 1);
+    this.touch = this.makeTouch();
 
     // --- Keys ---
     const kb = this.input.keyboard!;
-    this.keys = kb.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT') as Record<string, Phaser.Input.Keyboard.Key>;
+    this.bindWalkKeys();
+    // Walking keys follow the player's bindings (changed from the menu's Controls screen).
+    const rebind = () => {
+      this.bindWalkKeys();
+      if (this.touch) {
+        // New touch layout: rebuild the joystick / buttons.
+        this.touch.destroy();
+        this.touch = this.makeTouch();
+      }
+    };
+    this.game.events.on(CONTROLS_CHANGED, rebind);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.game.events.off(CONTROLS_CHANGED, rebind));
     const press = (key: PanelKey) => this.onPress(key);
     kb.on('keydown-E', () => press('confirm'));
     kb.on('keydown-ENTER', () => press('confirm'));
@@ -156,9 +164,10 @@ export class HubScene extends Phaser.Scene {
     const k = this.keys;
     const busy = !!this.panel || this.leaving || this.dialogue.isOpen;
     this.dialogue.update(dt);
+    const down = (name: string) => k[name]?.isDown ?? false;
     const dir = new Phaser.Math.Vector2(
-      busy ? 0 : (k.D.isDown || k.RIGHT.isDown ? 1 : 0) - (k.A.isDown || k.LEFT.isDown ? 1 : 0),
-      busy ? 0 : (k.S.isDown || k.DOWN.isDown ? 1 : 0) - (k.W.isDown || k.UP.isDown ? 1 : 0),
+      busy ? 0 : (down('right') || down('RIGHT') ? 1 : 0) - (down('left') || down('LEFT') ? 1 : 0),
+      busy ? 0 : (down('down') || down('DOWN') ? 1 : 0) - (down('up') || down('UP') ? 1 : 0),
     ).normalize();
     if (this.touch) this.updateTouch(dir, busy);
     this.leader.setVelocity(dir.x * WALK_SPEED, dir.y * WALK_SPEED);
@@ -191,6 +200,36 @@ export class HubScene extends Phaser.Scene {
     });
 
     this.updatePrompt();
+  }
+
+  /** Movement keys: the player's bindings (up/down/left/right) plus the arrow keys. */
+  private bindWalkKeys(): void {
+    const kb = this.input.keyboard!;
+    if (this.keys) for (const key of Object.values(this.keys)) kb.removeKey(key, true);
+    const b = getControlSettings().bindings;
+    this.keys = {};
+    for (const action of ['up', 'down', 'left', 'right'] as const) {
+      if (!b[action].startsWith('MOUSE_')) this.keys[action] = kb.addKey(b[action]);
+    }
+    for (const arrow of ['UP', 'DOWN', 'LEFT', 'RIGHT']) this.keys[arrow] = kb.addKey(arrow);
+  }
+
+  private makeTouch(): TouchControls | null {
+    if (!IS_TOUCH) return null;
+    return new TouchControls(
+      this,
+      [
+        { id: 'talk', x: GAME_WIDTH - 92, y: GAME_HEIGHT - 100, r: 48, label: 'TALK', color: 0xffcf5a },
+        { id: 'party', x: GAME_WIDTH - 70, y: GAME_HEIGHT - 220, r: 30, label: 'PARTY', color: 0xc9bde0 },
+      ],
+      new Phaser.Geom.Rectangle(0, 70, GAME_WIDTH * 0.5, GAME_HEIGHT - 70),
+      this.stickOptions(),
+    );
+  }
+
+  private stickOptions() {
+    const t = getControlSettings().touch;
+    return { opacity: t.opacity, stickMode: t.stickMode, stickX: t.stick.x, stickY: t.stick.y, stickScale: t.stick.scale };
   }
 
   /** Phones: joystick walks; TALK talks; PARTY opens party setup. Hidden while a window is open. */
@@ -234,6 +273,7 @@ export class HubScene extends Phaser.Scene {
       return;
     }
     if (key === 'confirm' && this.nearNpc) this.talkTo(this.nearNpc);
+    if (key === 'back') this.openMenu(); // Esc with nothing open = menu
   }
 
   /**
@@ -277,6 +317,15 @@ export class HubScene extends Phaser.Scene {
         this.followers.push(this.add.image(x, y + i * 10, `hero-${id}`).setOrigin(0.5, 0.92));
       }
     });
+  }
+
+  /** Pause the town and show the menu on top. */
+  private openMenu(): void {
+    if (this.leaving || this.panel || this.dialogue.isOpen) return;
+    Sfx.play('uiConfirm');
+    this.leader.setVelocity(0, 0);
+    this.scene.pause();
+    this.scene.launch('Pause', { from: 'Hub' } satisfies PauseData);
   }
 
   private openPanel(panel: Panel): void {

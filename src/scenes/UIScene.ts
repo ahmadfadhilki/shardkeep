@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, GAME_HEIGHT, GAME_WIDTH, IS_TOUCH } from '../config';
 import { stageTouch, TouchControls } from '../ui/TouchControls';
+import { bindingLabel, CONTROLS_CHANGED, getControlSettings, TOUCH_BUTTONS } from '../systems/ControlSettings';
 import type { StageScene } from './StageScene';
 import type { Hero } from '../entities/Hero';
 import { STARS_PER_STAGE } from '../systems/StageRun';
@@ -50,6 +51,8 @@ export class UIScene extends Phaser.Scene {
   private helpText!: Phaser.GameObjects.Text;
   /** On-screen joystick + buttons (phones only, null on desktop). */
   private touch: TouchControls | null = null;
+  /** Controls were changed in the menu: rebuild this HUD when the game resumes. */
+  private controlsDirty = false;
 
   constructor() {
     super('UI');
@@ -67,11 +70,18 @@ export class UIScene extends Phaser.Scene {
 
     // Action button labels (bottom-left).
     const y = GAME_HEIGHT - 44;
-    this.label(48, y + 28, 'L-CLICK');
-    this.label(128, y + 28, 'E');
-    this.label(208, y + 28, 'R-CLICK');
-    this.label(284, y + 28, 'Z');
-    this.label(336, y + 28, 'X');
+    // Key labels come from the player's bindings (Controls screen).
+    const b = getControlSettings().bindings;
+    const key = (k: keyof typeof b) => bindingLabel(b[k]).toUpperCase();
+    this.label(48, y + 28, key('attack'));
+    this.label(128, y + 28, key('skill'));
+    this.label(208, y + 28, key('dodge'));
+    this.label(284, y + 28, key('potionHp'));
+    this.label(336, y + 28, key('potionMp'));
+    this.controlsDirty = false;
+    const onControls = () => (this.controlsDirty = true);
+    this.game.events.on(CONTROLS_CHANGED, onControls);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.game.events.off(CONTROLS_CHANGED, onControls));
     this.skillTimer = this.add
       .text(128, y, '', { fontFamily: 'monospace', fontSize: '14px', fontStyle: 'bold', color: '#ffffff', stroke: '#1a1422', strokeThickness: 3 })
       .setOrigin(0.5);
@@ -86,7 +96,7 @@ export class UIScene extends Phaser.Scene {
     this.helpText = this.add
       .text(this.scale.width / 2, IS_TOUCH ? 96 : GAME_HEIGHT - 16, IS_TOUCH
         ? 'Left thumb: move    Hold ATK to combo    Tap a hero (top-left) to switch'
-        : 'Q / 1-2-3: switch hero    Z / X: potions    R: reset room    Esc: pause', {
+        : `${key('swap')} / 1-2-3: switch hero    ${key('potionHp')} / ${key('potionMp')}: potions    R: reset room    Esc: menu`, {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: COLORS.uiText,
@@ -154,7 +164,12 @@ export class UIScene extends Phaser.Scene {
     bg.lineStyle(2, 0xff7af0, 1).strokeRoundedRect(-170, -26, 340, 52, 10);
     bg.fillStyle(0xff7af0).fillRoundedRect(-160, -16, 32, 32, 6);
     const keyText = this.add
-      .text(-144, 0, 'F', { fontFamily: 'monospace', fontSize: '20px', fontStyle: 'bold', color: '#2a0f2e' })
+      .text(-144, 0, IS_TOUCH ? 'TAP' : key('chain'), {
+        fontFamily: 'monospace',
+        fontSize: IS_TOUCH || key('chain').length > 1 ? '9px' : '20px',
+        fontStyle: 'bold',
+        color: '#2a0f2e',
+      })
       .setOrigin(0.5);
     this.chainChip = this.add.rectangle(-112, 0, 12, 32, 0xffffff);
     this.chainText = this.add.text(-98, -15, '', { fontFamily: 'monospace', fontSize: '15px', color: '#ffffff', fontStyle: 'bold' });
@@ -183,20 +198,17 @@ export class UIScene extends Phaser.Scene {
   private createTouchControls(): void {
     const W = GAME_WIDTH;
     const H = GAME_HEIGHT;
+    // Positions, sizes, opacity and stick mode come from the player's layout (Controls screen).
+    const layout = getControlSettings().touch;
     this.touch = new TouchControls(
       this,
-      [
-        { id: 'attack', x: W - 92, y: H - 92, r: 52, label: 'ATK', color: 0xffffff },
-        { id: 'skill', x: W - 200, y: H - 62, r: 38, label: 'SKILL', color: 0xffb347 },
-        { id: 'dodge', x: W - 74, y: H - 210, r: 34, label: 'ROLL', color: 0x9fd8ff },
-        { id: 'chain', x: W - 196, y: H - 176, r: 36, label: 'CHAIN', color: 0xff7af0 },
-        { id: 'swap', x: W - 300, y: H - 40, r: 26, label: 'SWAP', color: 0xc9bde0 },
-        { id: 'potionHp', x: W - 372, y: H - 40, r: 24, label: 'HP', color: 0xff5a7a },
-        { id: 'potionMp', x: W - 436, y: H - 40, r: 24, label: 'MP', color: 0x5a9aff },
-        { id: 'pause', x: W - 28, y: 28, r: 22, label: 'II', color: 0xffffff },
-      ],
-      // Joystick zone: the left part of the screen, below the party rows.
+      TOUCH_BUTTONS.map((d) => {
+        const l = layout.buttons[d.id];
+        return { id: d.id, x: l.x, y: l.y, r: d.r * l.scale, label: d.label, color: d.color };
+      }),
+      // Floating joystick zone: the left part of the screen, below the party rows.
       new Phaser.Geom.Rectangle(0, 120, W * 0.45, H - 120),
+      { opacity: layout.opacity, stickMode: layout.stickMode, stickX: layout.stick.x, stickY: layout.stick.y, stickScale: layout.stick.scale },
     );
     stageTouch.current = this.touch;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -241,6 +253,11 @@ export class UIScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    // New controls from the menu? Rebuild the HUD (labels / touch buttons) now that we're running again.
+    if (this.controlsDirty) {
+      this.scene.restart();
+      return;
+    }
     const stage = this.scene.get('Stage') as StageScene;
     const party = stage.party;
     if (!party) return;

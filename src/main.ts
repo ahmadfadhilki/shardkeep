@@ -11,6 +11,7 @@ import { ResultsScene } from './scenes/ResultsScene';
 import { PauseScene } from './scenes/PauseScene';
 import { LoginScene } from './scenes/LoginScene';
 import { LeaderboardScene } from './scenes/LeaderboardScene';
+import { ControlsScene } from './scenes/ControlsScene';
 import { initSfx, toggleMute } from './systems/Sfx';
 
 /**
@@ -42,7 +43,7 @@ const game = new Phaser.Game({
     arcade: { gravity: { x: 0, y: 0 }, debug }, // top-down = no gravity
   },
   // Flow: Login -> Title -> Hub -> StageSelect -> Stage (+ UI overlay) -> Results -> Hub
-  scene: [BootScene, PreloadScene, LoginScene, TitleScene, HubScene, StageSelectScene, StageScene, UIScene, PauseScene, ResultsScene, LeaderboardScene],
+  scene: [BootScene, PreloadScene, LoginScene, TitleScene, HubScene, StageSelectScene, StageScene, UIScene, PauseScene, ResultsScene, LeaderboardScene, ControlsScene],
 });
 
 // Expose the game in the browser console for learning/debugging: try `game.scene.getScenes(true)`.

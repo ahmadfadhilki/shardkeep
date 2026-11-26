@@ -1,19 +1,22 @@
 import Phaser from 'phaser';
 import { IS_TOUCH } from '../config';
 import { stageTouch } from '../ui/TouchControls';
+import { CONTROLS_CHANGED, getControlSettings, MOUSE_BUTTONS, type ActionId } from './ControlSettings';
 
 /**
  * Wraps keyboard + mouse so the rest of the game never deals with raw input.
- * To rebind controls (or add a gamepad later), only this file changes.
  *
- *   Move ............ WASD or Arrow keys
+ * Which key does what comes from ControlSettings (the player can rebind them
+ * on the Controls screen). Defaults:
+ *
+ *   Move ............ WASD (arrow keys always work too)
  *   Attack .......... Left mouse button (hold to keep combo-ing), aims at the cursor
- *   Dodge ........... Right mouse button (Space also works)
+ *   Dodge ........... Right mouse button
  *   Skill ........... E
  *   Chain skill ..... F (when an enemy is stunned / knocked down)
- *   Switch hero ..... Q (next) or 1 / 2 / 3
+ *   Switch hero ..... Q (next), or 1 / 2 / 3 (fixed)
  *   Potions ......... Z (health) / X (mana)
- *   Pause ........... Esc
+ *   Menu ............ Esc (fixed)
  *
  * On phones (IS_TOUCH) the same PlayerInput is filled from the on-screen
  * joystick and buttons instead (see ui/TouchControls.ts), and attacks aim
@@ -30,12 +33,12 @@ export interface PlayerInput {
   attackHeld: boolean;
   skill: boolean;
   dodge: boolean;
-  /** Chain skill (F). */
+  /** Chain skill. */
   chain: boolean;
   switchNext: boolean;
   /** 0, 1, 2 when a number key was pressed, otherwise -1. */
   select: number;
-  /** Drink a potion (Z = health, X = mana). */
+  /** Drink a potion. */
   potionHealth: boolean;
   potionMana: boolean;
   pause: boolean;
@@ -43,13 +46,22 @@ export interface PlayerInput {
   autoAim: boolean;
 }
 
+/** Actions that happen once per press (attack is also "held"; movement is only held). */
+const PRESS_ACTIONS: ActionId[] = ['attack', 'skill', 'dodge', 'chain', 'swap', 'potionHp', 'potionMp'];
+
 export class Controls {
-  private keys: Record<string, Phaser.Input.Keyboard.Key>;
-  private scene: Phaser.Scene;
-  // Mouse clicks arrive as events between frames; we remember them
-  // until the next read() so a quick click is never missed.
-  private leftClicked = false;
-  private rightClicked = false;
+  private readonly scene: Phaser.Scene;
+  /** One Phaser Key object per keyboard binding, by action. */
+  private keys: Partial<Record<ActionId, Phaser.Input.Keyboard.Key>> = {};
+  /** Fixed keys: arrows, 1/2/3, Esc. */
+  private fixed: Record<string, Phaser.Input.Keyboard.Key> = {};
+  /**
+   * Presses since the last read(). Key presses and mouse clicks arrive as
+   * events BETWEEN frames, so we queue them: a quick tap is never missed,
+   * not even during a hit-stop freeze.
+   */
+  private pressed = new Set<string>();
+
   private readonly input: PlayerInput = {
     move: new Phaser.Math.Vector2(),
     aimWorld: new Phaser.Math.Vector2(),
@@ -69,45 +81,57 @@ export class Controls {
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
     const kb = scene.input.keyboard!;
-    this.keys = kb.addKeys({
-      up: 'W',
-      down: 'S',
-      left: 'A',
-      right: 'D',
-      up2: 'UP',
-      down2: 'DOWN',
-      left2: 'LEFT',
-      right2: 'RIGHT',
-      skill: 'E',
-      dodge: 'SPACE',
-      next: 'Q',
-      chain: 'F',
-      one: 'ONE',
-      two: 'TWO',
-      three: 'THREE',
-      potionHp: 'Z',
-      potionMp: 'X',
-      pause: 'ESC',
-    }) as Record<string, Phaser.Input.Keyboard.Key>;
 
-    // Stop the browser's right-click menu from popping up over the game.
+    this.fixed = kb.addKeys('UP,DOWN,LEFT,RIGHT,ONE,TWO,THREE,ESC') as Record<string, Phaser.Input.Keyboard.Key>;
+    this.fixed.ONE.on('down', () => this.pressed.add('one'));
+    this.fixed.TWO.on('down', () => this.pressed.add('two'));
+    this.fixed.THREE.on('down', () => this.pressed.add('three'));
+    this.fixed.ESC.on('down', () => this.pressed.add('pause'));
+
+    // Stop the browser's right-click menu, and the middle-click "autoscroll", over the game.
     scene.input.mouse?.disableContextMenu();
+    scene.game.canvas.addEventListener('mousedown', preventMiddleClick);
+
+    // Mouse buttons: find which action (if any) is bound to the button that was pressed.
     scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (IS_TOUCH) return; // touches are handled by the on-screen controls
-      if (p.button === 0) this.leftClicked = true;
-      else if (p.button === 2) this.rightClicked = true;
+      const button = MOUSE_BUTTONS[[0, 1, 2].indexOf(p.button)];
+      for (const action of PRESS_ACTIONS) if (getControlSettings().bindings[action] === button) this.pressed.add(action);
     });
 
-    // Action keys: remember every press via the key's 'down' event.
-    // (Phaser's JustDown() forgets a press once the key is released, so a quick
-    // tap during a hit-stop freeze could be lost. An event-based queue can't.)
-    for (const name of ['skill', 'dodge', 'chain', 'next', 'one', 'two', 'three', 'potionHp', 'potionMp', 'pause']) {
-      this.keys[name].on('down', () => this.pressed.add(name));
+    this.bindKeys();
+    // The player changed their bindings on the Controls screen: rebuild the keys.
+    const rebind = () => this.bindKeys();
+    scene.game.events.on(CONTROLS_CHANGED, rebind);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      scene.game.events.off(CONTROLS_CHANGED, rebind);
+      scene.game.canvas.removeEventListener('mousedown', preventMiddleClick);
+    });
+  }
+
+  /** (Re)create a Phaser Key for every keyboard binding. Mouse bindings need no Key. */
+  private bindKeys(): void {
+    const kb = this.scene.input.keyboard!;
+    for (const key of Object.values(this.keys)) if (key) kb.removeKey(key, true);
+    this.keys = {};
+    const bindings = getControlSettings().bindings;
+    for (const [action, binding] of Object.entries(bindings) as [ActionId, string][]) {
+      if (binding.startsWith('MOUSE_')) continue;
+      const key = kb.addKey(binding);
+      this.keys[action] = key;
+      if (PRESS_ACTIONS.includes(action)) key.on('down', () => this.pressed.add(action));
     }
   }
 
-  /** Action keys pressed since the last read(). */
-  private pressed = new Set<string>();
+  /** Is the action's key or mouse button held down right now? */
+  private isDown(action: ActionId): boolean {
+    const binding = getControlSettings().bindings[action];
+    const p = this.scene.input.activePointer;
+    if (binding === 'MOUSE_LEFT') return !IS_TOUCH && p.leftButtonDown();
+    if (binding === 'MOUSE_RIGHT') return !IS_TOUCH && p.rightButtonDown();
+    if (binding === 'MOUSE_MIDDLE') return !IS_TOUCH && p.middleButtonDown();
+    return this.keys[action]?.isDown ?? false;
+  }
 
   /** True if `name` was pressed since the last read(). */
   private took(name: string): boolean {
@@ -116,12 +140,12 @@ export class Controls {
 
   /** Read all input for this frame. Call exactly once per frame. */
   read(): PlayerInput {
-    const k = this.keys;
     const i = this.input;
+    const f = this.fixed;
 
     // Movement: normalize so diagonals aren't ~41% faster than straight lines.
-    const x = (k.right.isDown || k.right2.isDown ? 1 : 0) - (k.left.isDown || k.left2.isDown ? 1 : 0);
-    const y = (k.down.isDown || k.down2.isDown ? 1 : 0) - (k.up.isDown || k.up2.isDown ? 1 : 0);
+    const x = (this.isDown('right') || f.RIGHT.isDown ? 1 : 0) - (this.isDown('left') || f.LEFT.isDown ? 1 : 0);
+    const y = (this.isDown('down') || f.DOWN.isDown ? 1 : 0) - (this.isDown('up') || f.UP.isDown ? 1 : 0);
     i.move.set(x, y).normalize();
 
     // Convert the mouse's screen position into a world position. We do this
@@ -130,12 +154,12 @@ export class Controls {
     const world = pointer.positionToCamera(this.scene.cameras.main) as Phaser.Math.Vector2;
     i.aimWorld.set(world.x, world.y);
 
-    i.attack = this.leftClicked;
-    i.attackHeld = pointer.leftButtonDown();
-    i.dodge = this.rightClicked || this.took('dodge');
+    i.attack = this.took('attack');
+    i.attackHeld = this.isDown('attack');
+    i.dodge = this.took('dodge');
     i.skill = this.took('skill');
     i.chain = this.took('chain');
-    i.switchNext = this.took('next');
+    i.switchNext = this.took('swap');
     i.select = this.took('one') ? 0 : this.took('two') ? 1 : this.took('three') ? 2 : -1;
     i.potionHealth = this.took('potionHp');
     i.potionMana = this.took('potionMp');
@@ -145,8 +169,6 @@ export class Controls {
     const touch = IS_TOUCH ? stageTouch.current : null;
     if (touch) this.mergeTouch(touch);
 
-    this.leftClicked = false;
-    this.rightClicked = false;
     this.pressed.clear();
     return i;
   }
@@ -170,4 +192,8 @@ export class Controls {
     i.autoAim = true;
     t.consume();
   }
+}
+
+function preventMiddleClick(e: MouseEvent): void {
+  if (e.button === 1) e.preventDefault();
 }

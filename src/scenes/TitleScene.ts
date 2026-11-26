@@ -144,6 +144,8 @@ export class TitleScene extends Phaser.Scene {
         })();
       }, 150, 28, 0xc9bde0);
     }
+    // Controls: rebind keys (laptop) or arrange the touch buttons (phone).
+    new Button(this, GAME_WIDTH - 90, 62, 'Controls', () => this.scene.start('Controls', { from: 'Title' }), 150, 28, 0xc9bde0);
     if (this.notice) {
       const t = this.add.text(GAME_WIDTH / 2, 320, this.notice, {
         fontFamily: 'monospace', fontSize: '14px', color: '#1a1422', backgroundColor: '#b8f27a', padding: { x: 10, y: 5 },

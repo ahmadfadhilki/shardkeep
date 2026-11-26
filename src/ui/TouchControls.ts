@@ -1,5 +1,18 @@
 import Phaser from 'phaser';
 import { DEPTH } from '../config';
+import type { StickMode } from '../systems/ControlSettings';
+
+/** Optional look & feel (from the player's Controls settings). */
+export interface TouchOptions {
+  /** Button fill opacity, 0.2 - 0.9. */
+  opacity?: number;
+  /** floating = appears under your thumb; fixed = always at (x, y). */
+  stickMode?: StickMode;
+  stickX?: number;
+  stickY?: number;
+  /** Joystick size multiplier. */
+  stickScale?: number;
+}
 
 /** One round on-screen button. Positions are in screen pixels (960 x 540 game space). */
 export interface TouchButtonDef {
@@ -31,8 +44,9 @@ const DEAD_ZONE = 0.22;
 /**
  * TOUCH CONTROLS for phones and tablets.
  *
- *   - Floating joystick: put your thumb anywhere in `stickArea` (left part of
- *     the screen). The stick appears under your thumb; drag to move.
+ *   - Joystick, two modes (chosen on the Controls screen):
+ *       floating: put your thumb anywhere in `stickArea`; the stick appears under it.
+ *       fixed:    the stick always sits in the same spot; touch it and drag.
  *   - Round buttons: press = one "tap" event (read with took()), and while the
  *     finger stays down the button counts as held (isHeld()).
  *
@@ -55,14 +69,24 @@ export class TouchControls {
   private readonly pressed = new Set<string>();
 
   private stickPointer: number | null = null;
+  private readonly opacity: number;
+  private readonly stickMode: StickMode;
+  private readonly stickRadius: number;
+  /** Where the stick rests: the fixed position, or the hint spot in floating mode. */
+  private readonly stickHome = new Phaser.Math.Vector2();
   private readonly stickCenter = new Phaser.Math.Vector2();
   private readonly stickGfx: Phaser.GameObjects.Graphics;
 
   constructor(
-    scene: Phaser.Scene,
+    private readonly scene: Phaser.Scene,
     defs: TouchButtonDef[],
     private readonly stickArea: Phaser.Geom.Rectangle,
+    options: TouchOptions = {},
   ) {
+    this.opacity = options.opacity ?? 0.4;
+    this.stickMode = options.stickMode ?? 'floating';
+    this.stickRadius = STICK_RADIUS * (options.stickScale ?? 1);
+    this.stickHome.set(options.stickX ?? stickArea.x + 110, options.stickY ?? stickArea.bottom - 100);
     this.stickGfx = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.ui - 5);
     for (const def of defs) {
       const gfx = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.ui - 5);
@@ -102,6 +126,22 @@ export class TouchControls {
   /** True while a finger is on the button. */
   isHeld(id: string): boolean {
     return this.held.has(id);
+  }
+
+  /** Remove the buttons and stop listening (used to rebuild them with a new layout). */
+  destroy(): void {
+    const input = this.scene.input;
+    input.off('pointerdown', this.onDown, this);
+    input.off('pointermove', this.onMove, this);
+    input.off('pointerup', this.onUp, this);
+    input.off('pointerupoutside', this.onUp, this);
+    this.stickGfx.destroy();
+    for (const b of this.buttons.values()) {
+      b.gfx.destroy();
+      b.label.destroy();
+      b.sub.destroy();
+    }
+    this.buttons.clear();
   }
 
   /** Count a tap from elsewhere (e.g. tapping a party row in the HUD). */
@@ -145,31 +185,35 @@ export class TouchControls {
       b.sub.setVisible(show);
       if (!show) continue;
       const down = this.held.has(id);
-      g.fillStyle(b.dim ? 0x3a3446 : color, down ? 0.75 : b.dim ? 0.45 : 0.4).fillCircle(x, y, r);
-      g.lineStyle(2, 0xffffff, down ? 0.9 : 0.5).strokeCircle(x, y, r);
+      const a = this.opacity;
+      g.fillStyle(b.dim ? 0x3a3446 : color, down ? Math.min(1, a + 0.35) : a).fillCircle(x, y, r);
+      g.lineStyle(2, 0xffffff, down ? 0.9 : Math.min(1, a + 0.15)).strokeCircle(x, y, r);
       if (b.cooldown > 0) {
         const start = -Math.PI / 2;
         g.fillStyle(0x000000, 0.55);
         g.slice(x, y, r, start, start + Math.PI * 2 * b.cooldown, false).fillPath();
       }
-      b.label.setAlpha(b.dim ? 0.6 : 1);
+      b.label.setAlpha((b.dim ? 0.6 : 1) * Math.min(1, this.opacity + 0.45));
+      b.sub.setAlpha(Math.min(1, this.opacity + 0.45));
     }
 
     // Joystick: a ring where the thumb went down + a knob under the thumb.
     const g = this.stickGfx.clear();
     if (!this.enabled) return;
+    const R = this.stickRadius;
+    const knobR = R * 0.42;
     if (this.stickPointer !== null) {
       const c = this.stickCenter;
-      g.fillStyle(0xffffff, 0.08).fillCircle(c.x, c.y, STICK_RADIUS);
-      g.lineStyle(2, 0xffffff, 0.35).strokeCircle(c.x, c.y, STICK_RADIUS);
-      g.fillStyle(0xffffff, 0.45).fillCircle(c.x + this.knob.x, c.y + this.knob.y, 22);
+      g.fillStyle(0xffffff, 0.08 + this.opacity * 0.1).fillCircle(c.x, c.y, R);
+      g.lineStyle(2, 0xffffff, 0.35).strokeCircle(c.x, c.y, R);
+      g.fillStyle(0xffffff, 0.45).fillCircle(c.x + this.knob.x, c.y + this.knob.y, knobR);
     } else {
-      // Faint hint where the stick lives.
-      const a = this.stickArea;
-      const hx = a.x + 110;
-      const hy = a.bottom - 100;
-      g.lineStyle(2, 0xffffff, 0.12).strokeCircle(hx, hy, STICK_RADIUS);
-      g.fillStyle(0xffffff, 0.1).fillCircle(hx, hy, 22);
+      // Where the stick rests (fixed mode), or a faint hint of where it usually appears (floating).
+      const fixed = this.stickMode === 'fixed';
+      const h = this.stickHome;
+      g.fillStyle(0xffffff, fixed ? 0.06 + this.opacity * 0.1 : 0).fillCircle(h.x, h.y, R);
+      g.lineStyle(2, 0xffffff, fixed ? 0.3 : 0.12).strokeCircle(h.x, h.y, R);
+      g.fillStyle(0xffffff, fixed ? 0.3 : 0.1).fillCircle(h.x, h.y, knobR);
     }
   }
 
@@ -190,22 +234,29 @@ export class TouchControls {
         return;
       }
     }
-    // 2. Otherwise start the joystick, unless the finger landed on something tappable (a menu, a HUD row).
+    // 2. Otherwise maybe start the joystick, unless the finger landed on something tappable (a menu, a HUD row).
     if (over.length > 0 || this.stickPointer !== null) return;
-    if (!Phaser.Geom.Rectangle.Contains(this.stickArea, p.x, p.y)) return;
+    if (this.stickMode === 'fixed') {
+      // Fixed: you must touch the stick itself (a bit of slack around it).
+      if (Phaser.Math.Distance.Between(p.x, p.y, this.stickHome.x, this.stickHome.y) > this.stickRadius * 1.6) return;
+      this.stickCenter.copy(this.stickHome);
+    } else {
+      if (!Phaser.Geom.Rectangle.Contains(this.stickArea, p.x, p.y)) return;
+      this.stickCenter.set(p.x, p.y);
+    }
     this.stickPointer = p.id;
-    this.stickCenter.set(p.x, p.y);
     this.knob.set(0, 0);
     this.move.set(0, 0);
+    if (this.stickMode === 'fixed') this.onMove(p); // a touch off-center already pushes the stick
   }
 
   private onMove(p: Phaser.Input.Pointer): void {
     if (p.id !== this.stickPointer) return;
     this.knob.set(p.x - this.stickCenter.x, p.y - this.stickCenter.y);
     const len = this.knob.length();
-    if (len > STICK_RADIUS) this.knob.scale(STICK_RADIUS / len);
+    if (len > this.stickRadius) this.knob.scale(this.stickRadius / len);
     // Past the dead zone = full speed in that direction (like the keyboard).
-    if (len < STICK_RADIUS * DEAD_ZONE) this.move.set(0, 0);
+    if (len < this.stickRadius * DEAD_ZONE) this.move.set(0, 0);
     else this.move.copy(this.knob).normalize();
   }
 

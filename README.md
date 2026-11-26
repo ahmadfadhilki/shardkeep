@@ -103,7 +103,7 @@ or upload the `dist/` folder to any static host (GitHub Pages, Netlify, itch.io.
 | 1 / 2 / 3 | Switch to a specific hero |
 | Z / X | Drink a Health Potion (50% HP) / Mana Potion (full mana) on the hero you control |
 | R | Reset the current room (use it if a push block gets stuck) |
-| Esc | Pause menu: Resume / Restart stage / Return to town / Sound |
+| Esc | Menu (in a stage and in town): Resume, Reset room, Restart, Return to town, **Controls**, Log out, Quit to title, Sound |
 | M | Sound on/off (anywhere, saved) |
 
 ### On phones and tablets (touch)
@@ -119,12 +119,22 @@ Hold the phone sideways (the game asks you to if it's upright). It goes full scr
 | **CHAIN** (appears when possible) | Chain skill. Tapping the pink chain prompt works too |
 | Tap a hero's row (top-left) / **SWAP** | Switch hero |
 | **HP / MP** | Potions |
-| **II** (top-right) | Pause menu (also has "Reset room") |
+| **II** (top-right) | Menu (Reset room, **Controls**, Log out, Sound...) |
 | In town | Joystick to walk, **TALK** near someone, **PARTY** for party setup; tap menus and buttons |
+
+### Change your controls
+
+Open **Controls** from the menu (Esc / II / the town's **Menu** button) or the Title screen. Settings are saved on each device.
+
+- **Laptop:** click an action, then press the key or mouse button you want (keyboard keys and left/right/middle mouse all work).
+  If another action already uses it, the two swap. Arrows, 1/2/3, R, Esc and M keep their fixed jobs.
+- **Phone:** drag any button (and the joystick) to where your thumbs like it, tap one and use **Smaller / Bigger**,
+  choose the joystick: **Floating** (appears wherever your thumb lands on the left) or **Fixed** (always in one spot),
+  and pick how see-through the buttons are.
 
 To try the touch controls on a computer, add `?touch` to the URL (http://localhost:5173/?touch); mouse clicks then act as taps.
 
-**In town:** WASD to walk, **E** (or Enter) to talk / continue dialogue, **Tab** for party setup, **Esc** to close a window.
+**In town:** WASD to walk, **E** (or Enter) to talk / continue dialogue, **Tab** for party setup, **Esc** to close a window or open the **Menu** (also a button, top-right).
 In menus: W/S and A/D move, E/Enter selects, or just use the mouse.
 
 ## Game flow

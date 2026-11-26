@@ -1,12 +1,18 @@
 import Phaser from 'phaser';
-import { COLORS } from '../config';
+import { COLORS, IS_TOUCH } from '../config';
 import { HEROES, type HeroDef } from '../data/heroes';
 import { heroAtk, POTIONS, WEAPON_PRICES, type PotionDef } from '../data/progression';
 import { getSave, heroSave, saveGame } from '../systems/SaveData';
 import { Sfx } from '../systems/Sfx';
 import { flushCloudSave } from '../services/saveService';
+import { bindingLabel, getControlSettings } from '../systems/ControlSettings';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Button, Panel, type PanelKey } from './Panel';
+
+/** The player's key for a potion (they can rebind it). */
+function potionKey(kind: 'health' | 'mana'): string {
+  return bindingLabel(getControlSettings().bindings[kind === 'health' ? 'potionHp' : 'potionMp']) + ' key';
+}
 
 /** One line in the shop. Everything is a function so it always shows the current state. */
 interface ShopItem {
@@ -96,7 +102,7 @@ export class ShopPanel extends Panel {
     return {
       label: () => `${p.name}  (have ${getSave().potions[p.kind]}/${p.max})`,
       price: () => (getSave().potions[p.kind] >= p.max ? null : p.price),
-      description: () => `${p.description} Use it in a stage with ${p.key}.`,
+      description: () => `${p.description} Use it in a stage with ${IS_TOUCH ? `the ${p.kind === 'health' ? 'HP' : 'MP'} button` : 'the ' + potionKey(p.kind)}.`,
       verb: 'Buy',
       question: () => `Buy a ${p.name} for ${p.price} coins?`,
       give: () => getSave().potions[p.kind]++,

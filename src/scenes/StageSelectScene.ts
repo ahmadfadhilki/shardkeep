@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, GAME_HEIGHT, GAME_WIDTH } from '../config';
+import { COLORS, GAME_HEIGHT, GAME_WIDTH, IS_TOUCH } from '../config';
 import { getHeroDef } from '../data/heroes';
 import { STAGES } from '../data/stages';
 import { heroLevel, stageSave, getParty } from '../systems/SaveData';
@@ -82,7 +82,7 @@ export class StageSelectScene extends Phaser.Scene {
     new Button(this, GAME_WIDTH - 90, 40, 'Leaderboard', () => {
       this.goTo('Leaderboard', { stageId: STAGES[Math.min(this.selected, STAGES.length - 1)].id, back: 'StageSelect' });
     }, 150, 32);
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 30, 'Tap / click a stage to start.   Keys: A/D choose, Enter start, Esc back', { fontFamily: FONT, fontSize: '13px', color: COLORS.uiText })
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 30, IS_TOUCH ? 'Tap a stage to start.' : 'Click a stage to start.   Keys: A/D choose, Enter start, Esc back', { fontFamily: FONT, fontSize: '13px', color: COLORS.uiText })
       .setOrigin(0.5).setAlpha(0.7);
 
     const kb = this.input.keyboard!;
