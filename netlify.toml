@@ -1,0 +1,16 @@
+# Netlify deploy settings (read automatically when the site is linked to GitHub).
+# Every push to `main` rebuilds and republishes the game.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Vite 6 needs Node 18+; pin a current LTS so builds are repeatable.
+  NODE_VERSION = "20"
+
+# The built JS/asset files have content hashes in their names, so browsers may cache them forever.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
