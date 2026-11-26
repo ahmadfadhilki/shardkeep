@@ -3,6 +3,7 @@ import { TILE } from '../config';
 import type { RoomDef } from '../data/stages';
 import type { Hero } from '../entities/Hero';
 import {
+  Brazier,
   Bush,
   Checkpoint,
   Crystal,
@@ -50,6 +51,7 @@ export class RoomController {
   private blocks: PushBlock[] = [];
   private plates: PressurePlate[] = [];
   private crystals: Crystal[] = [];
+  private braziers: Brazier[] = [];
   private pickups: Pickup[] = [];
   private checkpoint?: Checkpoint;
   private goal?: GoalPortal;
@@ -117,6 +119,14 @@ export class RoomController {
         case 'h':
           crystalHint(this.scene, o.x, o.y, this.def.crystalOrder ?? []);
           break;
+        case 'b': {
+          const brazier = new Brazier(this.scene, o.x, o.y, this.def.brazierTime ?? 8, () => this.onBrazierLit());
+          if (p.solved) brazier.setPermanent();
+          else this.combat.hittables.push(brazier);
+          this.braziers.push(brazier);
+          this.solid(brazier);
+          break;
+        }
         case '%':
         case '&':
         case '@': {
@@ -192,6 +202,7 @@ export class RoomController {
 
   update(dt: number, leader: Hero, heroes: Hero[], move: Phaser.Math.Vector2, enemiesAlive: number): void {
     this.lockedMsgTimer -= dt;
+    for (const b of this.braziers) b.tick(dt);
     this.handlePush(dt, leader, move);
     this.handlePickups(leader, heroes);
     this.handleKeyDoors(leader);
@@ -215,10 +226,15 @@ export class RoomController {
     if (lock === 'enemies') solved = enemiesAlive === 0;
     if (lock === 'switches') solved = this.plates.length > 0 && this.plates.every((p) => p.pressed);
     if (lock === 'crystals') solved = this.crystals.length > 0 && this.crystalStep >= (this.def.crystalOrder?.length ?? 0);
+    if (lock === 'braziers') solved = this.braziers.length > 0 && this.braziers.every((b) => b.lit);
     if (!solved) return;
 
     this.progress.solved = true;
     if (lock === 'switches') this.progress.blockTiles = this.blocks.map((b) => [b.tx, b.ty]);
+    if (lock === 'braziers') {
+      for (const b of this.braziers) b.setPermanent();
+      this.combat.hittables = this.combat.hittables.filter((h) => !(h instanceof Brazier));
+    }
     if (this.doors.length > 0) {
       for (const d of this.doors) d.open();
       this.doors = [];
@@ -257,7 +273,9 @@ export class RoomController {
     this.pushTimer += dt;
     if (this.pushTimer < PUSH_DELAY) return;
     this.pushTimer = 0;
-    block.push(dx, dy, (tx, ty) => this.canBlockEnter(tx, ty), () => this.updatePlates());
+    // On ice (iceBlocks rooms) a pushed block slides until it hits something.
+    const maxSteps = this.def.iceBlocks ? 40 : 1;
+    block.push(dx, dy, (tx, ty) => this.canBlockEnter(tx, ty), () => this.updatePlates(), maxSteps);
   }
 
   /** A block may slide onto a tile that is floor and not occupied by another solid thing. */
@@ -293,6 +311,16 @@ export class RoomController {
       }
       popText(this.scene, crystal.x, crystal.y - 26, 'Wrong order!', '#ff5a5a', 15);
       this.scene.cameras.main.shake(100, 0.003);
+    }
+  }
+
+  /** A brazier caught fire: say how many are burning, so the player knows they're close. */
+  private onBrazierLit(): void {
+    if (this.progress.solved) return;
+    const lit = this.braziers.filter((b) => b.lit).length;
+    if (lit < this.braziers.length) {
+      const last = this.braziers.find((b) => b.burn === (this.def.brazierTime ?? 8));
+      if (last) popText(this.scene, last.x, last.y - 44, `${lit} / ${this.braziers.length}`, '#ffd23f', 15);
     }
   }
 

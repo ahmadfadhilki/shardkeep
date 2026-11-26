@@ -16,7 +16,9 @@ const PATTERN = {
 const PHASE2_SPEEDUP = 0.75; // phase 2 timings are multiplied by this
 
 /**
- * ASHEN WARDEN: the stage boss.
+ * THE BOSS (Ashen Warden, Rime Colossus...).
+ * Every boss shares these patterns; what differs (helpers, colors, whether it
+ * rings in phase 1...) comes from `def.boss` in data/enemies.ts.
  *
  * It uses the same flow as every Enemy (chase -> windup -> attack -> recover),
  * but picks one of three ATTACK PATTERNS each time:
@@ -43,6 +45,11 @@ export class Boss extends Enemy {
   private chargeHits = new Set<Entity>();
   private resistMsgAt = 0;
 
+  /** This boss's personality (defaults = the Ashen Warden). */
+  private get style() {
+    return this.def.boss ?? { title: '', summon: ['shooter', 'shooter'], fx: 0xff7a3a, enrageTint: 0xff9a80 };
+  }
+
   // ------------------------------------------------------------------
   // Choosing what to do
   // ------------------------------------------------------------------
@@ -66,7 +73,7 @@ export class Boss extends Enemy {
     const weights: [Pattern, number][] = [
       ['charge', dist > 170 ? 3 : 1],
       ['eruption', 2],
-      ['ring', this.phase === 2 ? 2 : 0],
+      ['ring', this.phase === 2 ? 2 : this.style.ringInPhase1 ? 1 : 0],
     ];
     const options = weights.filter(([p, w]) => w > 0 && p !== this.lastPattern);
     const total = options.reduce((s, [, w]) => s + w, 0);
@@ -160,11 +167,13 @@ export class Boss extends Enemy {
       for (const z of this.zones) this.erupt(z.x, z.y);
       this.zones = [];
     } else {
-      this.fireRing(this.phase === 2 ? 16 : PATTERN.ring.bullets, 0);
+      const bullets = this.style.ringBullets ?? PATTERN.ring.bullets;
+      const n = this.phase === 2 ? bullets + 4 : bullets;
+      this.fireRing(n, 0);
       if (this.phase === 2) {
         // A second ring, rotated half a step, fills the gaps.
         this.scene.time.delayedCall(280, () => {
-          if (this.active && !this.dead) this.fireRing(16, Math.PI / 16);
+          if (this.active && !this.dead) this.fireRing(n, Math.PI / n);
         });
       }
     }
@@ -217,9 +226,9 @@ export class Boss extends Enemy {
   /** Lava burst at a point (damages heroes inside the radius). */
   private erupt(x: number, y: number): void {
     const r = PATTERN.eruption.radius;
-    ring(this.scene, x, y, r, 0xff7a3a);
-    hitSpark(this.scene, x, y - 10, 0xff9b3d, 12);
-    poof(this.scene, x, y - 6, 0xff5a2a);
+    ring(this.scene, x, y, r, this.style.fx);
+    hitSpark(this.scene, x, y - 10, this.style.fx, 12);
+    poof(this.scene, x, y - 6, this.style.fx);
     this.combat.circleAttack(this, x, y, r, { power: 1.2, knockback: 300, heavy: true });
     this.scene.cameras.main.shake(90, 0.004);
   }
@@ -227,9 +236,9 @@ export class Boss extends Enemy {
   private fireRing(count: number, offset: number): void {
     for (let i = 0; i < count; i++) {
       const angle = offset + (i * Math.PI * 2) / count;
-      this.combat.shoot(this, angle, PATTERN.ring.bulletSpeed, 520, 'bolt', 0xff7a3a, { power: 0.8, knockback: 150 });
+      this.combat.shoot(this, angle, PATTERN.ring.bulletSpeed, 520, 'bolt', this.style.fx, { power: 0.8, knockback: 150 });
     }
-    ring(this.scene, this.x, this.y - 20, 50, 0xff9b3d);
+    ring(this.scene, this.x, this.y - 20, 50, this.style.fx);
   }
 
   /** True when standing right next to the room's outer wall (not a pillar). */
@@ -280,13 +289,18 @@ export class Boss extends Enemy {
     this.phase = 2;
     popText(this.scene, this.x, this.y - 90, 'ENRAGED!', '#ff5a5a', 26);
     this.scene.cameras.main.shake(400, 0.01);
-    this.scene.cameras.main.flash(250, 255, 80, 40);
+    const c = Phaser.Display.Color.IntegerToColor(this.style.fx); // flash in the boss's own color
+    this.scene.cameras.main.flash(250, c.red, c.green, c.blue);
     ring(this.scene, this.x, this.y - 20, 120, 0xff5a2a);
-    // Summon helpers on both sides (StageScene creates them).
-    this.scene.events.emit('boss-summon', [
-      { id: 'shooter', x: this.x - 140, y: this.y - 40 },
-      { id: 'shooter', x: this.x + 140, y: this.y - 40 },
-    ]);
+    // Summon helpers in a circle around it (StageScene creates them).
+    const ids = this.style.summon;
+    this.scene.events.emit(
+      'boss-summon',
+      ids.map((id, i) => {
+        const a = -Math.PI / 2 + (i - (ids.length - 1) / 2) * 0.9; // spread out above the boss
+        return { id, x: this.x + Math.cos(a) * 150, y: this.y + Math.sin(a) * 110 };
+      }),
+    );
   }
 
   protected idleAnimation(): void {
@@ -295,7 +309,7 @@ export class Boss extends Enemy {
     this.visual.setScale(1 + Math.sin(t) * 0.02, 1 - Math.sin(t) * 0.02);
     // Phase 2: the lava cracks pulse red.
     if (this.phase === 2) {
-      if (Math.floor(this.scene.time.now / 180) % 2 === 0) this.visual.setTint(0xff9a80);
+      if (Math.floor(this.scene.time.now / 180) % 2 === 0) this.visual.setTint(this.style.enrageTint);
       else this.visual.clearTint();
     }
   }
@@ -310,7 +324,7 @@ export class Boss extends Enemy {
       repeat: 7,
       callback: () => {
         n++;
-        poof(this.scene, this.x + Phaser.Math.Between(-30, 30), this.y - Phaser.Math.Between(0, 50), n % 2 ? 0xff7a3a : 0xffffff);
+        poof(this.scene, this.x + Phaser.Math.Between(-30, 30), this.y - Phaser.Math.Between(0, 50), n % 2 ? this.style.fx : 0xffffff);
         this.visual.setAlpha(n % 2 ? 0.4 : 1);
       },
     });

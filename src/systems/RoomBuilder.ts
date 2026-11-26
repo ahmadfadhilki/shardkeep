@@ -22,7 +22,7 @@ const SOLID = [TILE_INDEX.wallTop, TILE_INDEX.wallFace];
 const WALL_CHARS = new Set(['#', 'o']);
 
 /** Characters that become puzzle/prop OBJECTS (floor underneath). See stages.ts legend. */
-const OBJECT_CHARS = new Set(['x', 'D', 'L', 'B', '_', '1', '2', '3', '4', 'h', '%', '&', '@', '$', '*', 'C', 'G']);
+const OBJECT_CHARS = new Set(['x', 'D', 'L', 'B', '_', '1', '2', '3', '4', 'h', '%', '&', '@', '$', '*', 'C', 'G', 'b']);
 
 /** A prop found in the layout. */
 export interface RoomObject {
@@ -70,7 +70,8 @@ export interface BuiltRoom {
  * Why choose wall tiles by looking at neighbors? A wall with floor below it
  * shows its front "face", which gives a cheap fake-3D look with zero art work.
  */
-export function buildRoom(scene: Phaser.Scene, room: RoomDef): BuiltRoom {
+/** `tileKey` = which tile strip to use (the stage theme's, see data/themes.ts). */
+export function buildRoom(scene: Phaser.Scene, room: RoomDef, tileKey = 'tiles'): BuiltRoom {
   const rows = room.layout;
   const h = rows.length;
   const w = rows[0].length;
@@ -118,7 +119,7 @@ export function buildRoom(scene: Phaser.Scene, room: RoomDef): BuiltRoom {
   }
 
   const map = scene.make.tilemap({ data, tileWidth: TILE, tileHeight: TILE });
-  const tileset = map.addTilesetImage('tiles', 'tiles', TILE, TILE, 0, 0)!;
+  const tileset = map.addTilesetImage(tileKey, tileKey, TILE, TILE, 0, 0)!;
   const layer = map.createLayer(0, tileset, 0, 0)!;
   layer.setDepth(DEPTH.floor);
   layer.setCollision(SOLID);

@@ -62,9 +62,28 @@ export interface EnemyDef {
   /** Tank: radius of the slam attack (px). */
   slamRadius?: number;
 
-  /** Rewards (used in Step 7). */
+  /** Rewards. */
   xp: number;
   coins: number;
+
+  /** Bosses only: their personality (see entities/enemies/Boss.ts). */
+  boss?: BossStyle;
+}
+
+/** What makes each boss different, while they share the same attack patterns. */
+export interface BossStyle {
+  /** Subtitle on the intro title card. */
+  title: string;
+  /** Enemy ids it calls in at 50% HP (placed around it). */
+  summon: string[];
+  /** Color of its effects (eruption rings, projectiles). Warning zones always stay red. */
+  fx: number;
+  /** Tint while flashing in phase 2. */
+  enrageTint: number;
+  /** Also uses the ring attack in phase 1 (harder bosses). */
+  ringInPhase1?: boolean;
+  /** Bullets per ring (default 12, phase 2 adds more). */
+  ringBullets?: number;
 }
 
 export const ENEMIES: EnemyDef[] = [
@@ -165,6 +184,125 @@ export const ENEMIES: EnemyDef[] = [
     poise: 18,
     xp: 200,
     coins: 60,
+    boss: {
+      title: 'Keeper of the Ember Throne',
+      // Phase 2 helpers: two wisps and a slime.
+      summon: ['shooter', 'shooter', 'chaser'],
+      fx: 0xff7a3a,
+      enrageTint: 0xff9a80,
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // FROSTMERE CAVES (harder stage). Mostly WATER element: Earth heroes hit them
+  // for x1.3, Fire heroes only deal x0.75. Bring Moss / Brask!
+  // ---------------------------------------------------------------------------
+  {
+    id: 'frostchaser',
+    name: 'Frost Slime',
+    symbol: 'f',
+    behavior: 'chaser',
+    shape: 'blob',
+    element: 'water',
+    color: 0x7fc8e8,
+    accent: 0xeefaff,
+    radius: 13,
+    hp: 115,
+    atk: 15,
+    def: 4,
+    speed: 112,
+    aggroRange: 260,
+    attackRange: 66,
+    windup: 0.38,
+    attackCooldown: 0.65,
+    attackPower: 1.1,
+    lungeSpeed: 400,
+    xp: 22,
+    coins: 5,
+  },
+  {
+    id: 'frostwisp',
+    name: 'Ice Wisp',
+    symbol: 'i',
+    behavior: 'shooter',
+    shape: 'wisp',
+    element: 'water',
+    color: 0x9fd8ff,
+    accent: 0xffffff,
+    radius: 11,
+    hp: 80,
+    atk: 13,
+    def: 2,
+    speed: 95,
+    aggroRange: 330,
+    attackRange: 270,
+    windup: 0.55,
+    attackCooldown: 1.25,
+    attackPower: 1,
+    shotSpeed: 270,
+    shotCount: 5,
+    shotSpread: 12,
+    xp: 26,
+    coins: 6,
+  },
+  {
+    id: 'frosttank',
+    name: 'Glacier Shell',
+    symbol: 'g',
+    behavior: 'tank',
+    shape: 'shell',
+    element: 'earth', // a rock shell: Fire heroes get their revenge here
+    color: 0x6f8aa0,
+    accent: 0xdff4ff,
+    radius: 21,
+    hp: 400,
+    atk: 23,
+    def: 12,
+    speed: 62,
+    aggroRange: 260,
+    attackRange: 76,
+    windup: 0.8,
+    attackCooldown: 1.2,
+    attackPower: 1.5,
+    knockbackResist: 0.9,
+    poise: 4,
+    slamRadius: 96,
+    xp: 60,
+    coins: 16,
+  },
+  {
+    // The Frostmere boss: same patterns as the Ashen Warden, but tougher, faster to anger,
+    // throws ice rings from the start, and calls more helpers.
+    id: 'frostboss',
+    name: 'Rime Colossus',
+    symbol: 'Q',
+    behavior: 'boss',
+    shape: 'golem',
+    element: 'water',
+    color: 0x3f6a8c,
+    accent: 0xbfeaff,
+    radius: 30,
+    hp: 4300,
+    atk: 25,
+    def: 11,
+    speed: 82,
+    aggroRange: 900,
+    attackRange: 0,
+    windup: 1.0,
+    attackCooldown: 0.7,
+    attackPower: 1.35,
+    knockbackResist: 1,
+    poise: 24,
+    xp: 420,
+    coins: 120,
+    boss: {
+      title: 'Keeper of the Frozen Throne',
+      summon: ['frostwisp', 'frostwisp', 'frostchaser', 'frostchaser'],
+      fx: 0x9fd8ff,
+      enrageTint: 0xbfe8ff,
+      ringInPhase1: true,
+      ringBullets: 14,
+    },
   },
 ];
 

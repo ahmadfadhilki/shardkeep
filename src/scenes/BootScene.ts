@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, TILE } from '../config';
 import { HEROES } from '../data/heroes';
 import { HUB_NPCS } from '../data/hub';
+import { THEMES, type ThemeDef } from '../data/themes';
 import { ENEMIES } from '../data/enemies';
 
 /**
@@ -17,7 +18,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.makeTiles();
+    for (const theme of Object.values(THEMES)) this.makeTiles(theme);
     for (const npc of HUB_NPCS) this.makeNpc('npc-' + npc.id, npc.color);
     for (const hero of HEROES) this.makeHero(`hero-${hero.id}`, hero.color, hero.accent);
     for (const enemy of ENEMIES) {
@@ -36,10 +37,13 @@ export class BootScene extends Phaser.Scene {
     this.scene.start('Preload');
   }
 
-  /** A horizontal strip of 32x32 tiles. Order must match TILE_INDEX in RoomBuilder. */
-  private makeTiles(): void {
+  /**
+   * A horizontal strip of 32x32 tiles in a theme's colors (see data/themes.ts).
+   * Order must match TILE_INDEX in RoomBuilder.
+   */
+  private makeTiles(theme: ThemeDef): void {
     const frames = 5;
-    const tex = this.textures.createCanvas('tiles', TILE * frames, TILE)!;
+    const tex = this.textures.createCanvas(theme.tileKey, TILE * frames, TILE)!;
     const ctx = tex.getContext();
     const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 
@@ -51,30 +55,30 @@ export class BootScene extends Phaser.Scene {
       ctx.fillRect(ox, TILE - 1, TILE, 1);
       ctx.fillRect(ox + TILE - 1, 0, 1, TILE);
       // A few specks for texture.
-      ctx.fillStyle = hex(COLORS.floorSpeck);
+      ctx.fillStyle = hex(theme.floorSpeck);
       ctx.fillRect(ox + 7, 9, 2, 2);
       ctx.fillRect(ox + 21, 19, 2, 2);
       ctx.fillRect(ox + 13, 26, 1, 1);
     };
 
     // 0: floor A, 1: floor B
-    floor(0, COLORS.floorA);
-    floor(TILE, COLORS.floorB);
+    floor(0, theme.floorA);
+    floor(TILE, theme.floorB);
 
     // 2: wall top (seen from above)
     let ox = TILE * 2;
-    ctx.fillStyle = hex(COLORS.wallTop);
+    ctx.fillStyle = hex(theme.wallTop);
     ctx.fillRect(ox, 0, TILE, TILE);
     ctx.fillStyle = 'rgba(255,255,255,0.06)';
     ctx.fillRect(ox + 2, 2, TILE - 4, TILE - 4);
 
     // 3: wall with visible front face (top strip + darker brick face)
     ox = TILE * 3;
-    ctx.fillStyle = hex(COLORS.wallTop);
+    ctx.fillStyle = hex(theme.wallTop);
     ctx.fillRect(ox, 0, TILE, 10);
-    ctx.fillStyle = hex(COLORS.wallEdge);
+    ctx.fillStyle = hex(theme.wallEdge);
     ctx.fillRect(ox, 9, TILE, 2);
-    ctx.fillStyle = hex(COLORS.wallFace);
+    ctx.fillStyle = hex(theme.wallFace);
     ctx.fillRect(ox, 11, TILE, TILE - 11);
     ctx.fillStyle = 'rgba(0,0,0,0.25)'; // brick lines
     ctx.fillRect(ox, 20, TILE, 1);
@@ -83,7 +87,7 @@ export class BootScene extends Phaser.Scene {
 
     // 4: floor with shadow cast by the wall above it
     ox = TILE * 4;
-    floor(ox, COLORS.floorA);
+    floor(ox, theme.floorA);
     const grad = ctx.createLinearGradient(0, 0, 0, 14);
     grad.addColorStop(0, 'rgba(0,0,0,0.45)');
     grad.addColorStop(1, 'rgba(0,0,0,0)');
@@ -265,6 +269,24 @@ export class BootScene extends Phaser.Scene {
       g.fillStyle(O).fillCircle(5, 6, 1.5);
     });
     // Checkpoint statue.
+    // Brazier: an iron bowl on a stand (the flame is drawn separately when lit).
+    draw('brazier', 28, 34, (g) => {
+      g.fillStyle(O).fillRect(11, 14, 6, 18).fillRect(5, 29, 18, 5);
+      g.fillStyle(0x5a5068).fillRect(12, 15, 4, 16).fillRect(6, 30, 16, 3);
+      g.fillStyle(O).fillEllipse(14, 11, 28, 14);
+      g.fillStyle(0x6e6380).fillEllipse(14, 10, 24, 10);
+      g.fillStyle(0x2a2236).fillEllipse(14, 8, 18, 5); // the empty bowl
+    });
+    // Flame for a lit brazier (tinted / scaled while it flickers).
+    draw('flame', 20, 26, (g) => {
+      g.fillStyle(0xff5a2a).fillTriangle(10, 0, 20, 20, 0, 20).fillCircle(10, 18, 8);
+      g.fillStyle(0xffb347).fillTriangle(10, 7, 16, 20, 4, 20).fillCircle(10, 19, 5);
+      g.fillStyle(0xfff2a8).fillCircle(10, 21, 3);
+    });
+    // Snowflake for the frost theme's snowfall.
+    draw('snowflake', 6, 6, (g) => {
+      g.fillStyle(0xffffff).fillCircle(3, 3, 3);
+    });
     draw('checkpoint', 28, 44, (g) => {
       g.fillStyle(O).fillRect(2, 34, 24, 10).fillRect(7, 6, 14, 30);
       g.fillStyle(0x8a8aa0).fillRect(3, 35, 22, 8).fillRect(8, 7, 12, 28);

@@ -20,6 +20,8 @@ import { POTIONS, STAGE_CLEAR_XP, type PotionKind } from '../data/progression';
 import type { ResultsData } from './ResultsScene';
 import type { PauseData } from './PauseScene';
 import { flushCloudSave } from '../services/saveService';
+import { THEMES } from '../data/themes';
+import { Snowfall } from '../systems/Snowfall';
 
 /**
  * Data passed to this scene by scene.start / scene.restart.
@@ -64,6 +66,8 @@ export class StageScene extends Phaser.Scene {
   /** True during the boss intro: the party can't act. */
   private cutscene = false;
   private enemyGroup!: Phaser.GameObjects.Group;
+  /** Falling snow (frost theme only). */
+  private snow: Snowfall | null = null;
 
   constructor() {
     super('Stage');
@@ -89,14 +93,17 @@ export class StageScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.cameras.main.setBackgroundColor(COLORS.background);
+    // The stage's theme decides the tiles, background and weather (data/themes.ts).
+    const theme = THEMES[this.stage.theme ?? 'ember'];
+    this.cameras.main.setBackgroundColor(theme.background);
+    this.snow = theme.snow ? new Snowfall(this) : null;
     this.controls = new Controls(this);
     this.combat = new CombatSystem(this);
     this.chain = new ChainSystem(this);
     const progress = this.run.room(this.roomDef.id);
 
     // 1. Build the room from its ASCII layout.
-    this.built = buildRoom(this, this.roomDef);
+    this.built = buildRoom(this, this.roomDef, theme.tileKey);
     this.physics.world.setBounds(0, 0, this.built.widthPx, this.built.heightPx);
 
     // 2. Props + puzzles (doors, blocks, crystals, pickups...).
@@ -191,6 +198,7 @@ export class StageScene extends Phaser.Scene {
     if (this.leaving) return;
 
     this.run.elapsed += dt;
+    this.snow?.update(dt);
     if (this.cutscene) {
       // Keep animating enemies (they stand still in idle) but ignore input.
       this.party.heroes.forEach((h) => h.body.setVelocity(0, 0));
@@ -324,7 +332,8 @@ export class StageScene extends Phaser.Scene {
     if (newBest) record.bestTime = time;
     for (const star of this.run.stars) if (!record.stars.includes(star)) record.stars.push(star);
     save.coins += this.run.coins; // coins only reach the bank when you clear
-    for (const id of getParty()) grantXp(id, STAGE_CLEAR_XP);
+    const clearXp = this.stage.clearXp ?? STAGE_CLEAR_XP; // harder stages give more
+    for (const id of getParty()) grantXp(id, clearXp);
     saveGame();
     void flushCloudSave(); // auto-save to the cloud after each stage (does nothing for guests)
 
@@ -335,7 +344,7 @@ export class StageScene extends Phaser.Scene {
       stars: this.run.stars.length,
       xpBefore: this.run.xpBefore,
       xpGained: this.run.xpGained,
-      clearXp: STAGE_CLEAR_XP,
+      clearXp,
       newBest,
       firstClear,
     };
@@ -446,7 +455,7 @@ export class StageScene extends Phaser.Scene {
     cam.pan(boss.x, boss.y, 700, 'Sine.easeInOut');
     this.time.delayedCall(800, () => {
       roar();
-      this.titleCard(boss.def.name.toUpperCase(), 'Keeper of the Ember Throne');
+      this.titleCard(boss.def.name.toUpperCase(), boss.def.boss?.title ?? '');
     });
     this.time.delayedCall(2700, () => cam.pan(this.party.leader.x, this.party.leader.y, 500, 'Sine.easeInOut'));
     this.time.delayedCall(3250, () => {

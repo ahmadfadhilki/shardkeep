@@ -207,6 +207,9 @@ with disadvantage x0.75 (grey numbers). Enemy HP bars show a colored element dot
 | `c` | Bramble Slime | Earth | Chases you, flashes red, then lunges. Hits interrupt it. |
 | `w` | Ember Wisp | Fire | Keeps its distance, shows an aim line, fires 3 fireballs. |
 | `t` | Tide Shell | Water | Slow and armored: normal hits don't stop it. Its slam shows a **red zone**: step out! Heavy hits and skills wear down its armor until it **BREAKS** (stunned). |
+| `f` | Frost Slime | Water | (Frostmere) A faster, tougher Bramble Slime with a quicker lunge. |
+| `i` | Ice Wisp | Water | (Frostmere) Fires 5 faster shards instead of 3. |
+| `g` | Glacier Shell | Earth | (Frostmere) A bigger, harder-hitting Tide Shell with more armor. Fire heroes deal x1.3 here. |
 
 ## Chain skills
 
@@ -220,7 +223,9 @@ Each hero's chain has an 8 s cooldown.
 ## The stage: Ember Hollow
 
 ```
-                 [5 Ember Throne]    BOSS: Ashen Warden (portal appears when it falls)
+                 [6 Ember Throne]    BOSS: Ashen Warden + its guards (portal appears when they fall)
+                        |
+                 [5 Cinder Gallery]  brazier puzzle (NEW)
                         |
                  [4 Crystal Hall]    crystal puzzle + checkpoint
                         |  key door
@@ -231,10 +236,31 @@ Each hero's chain has an 8 s cooldown.
 - **Doors** open when the room's lock is solved: defeat all enemies, put blocks on every switch, or hit the crystals in order.
 - **Push blocks**: walk into a block and keep pushing; it slides one tile. Stuck? Press **R**.
 - **Crystals**: the runes on the floor show the order. Hitting the wrong one resets them all. Arrows work too!
+- **Braziers**: hit a brazier to light it. It only burns for a while (the ring around its base shows the time left),
+  so **every** brazier must be burning at the same moment. Hitting a lit brazier refreshes it. Arrows and bolts light them from afar.
 - **Key**: hidden in a bush in the garden. It opens the locked door in the Switch Chamber.
 - **3 hidden stars**: look for cracked walls and suspicious bushes.
 - **Checkpoint**: touch the statue to heal. If the party falls, you respawn there with everything you collected.
 - Everything you do is remembered while you move between rooms (`src/systems/StageRun.ts`).
+
+## The stage: Frostmere Caves (harder, Recommended Lv.8)
+
+A snowy stage with tougher enemies. Most of them are **Water**, so **Earth** heroes (Moss, Brask) deal x1.3 and Fire heroes only x0.75.
+Clearing it gives 160 bonus XP (Ember Hollow: 80).
+
+```
+                 [5 Frozen Throne]   BOSS: Rime Colossus + its guards
+                        |
+                 [4 Hearth Hall]     5 braziers (11 s each) + key gate + checkpoint
+                        |
+[1 Frozen Gate] -- [2 Glacier Slide] -- [3 Snowdrift Grotto]
+ defeat enemies     ICE block puzzle      find the hidden key + a star
+```
+
+- **Ice blocks** (Glacier Slide): the floor is ice, so a pushed block keeps sliding until it hits a wall, pillar or another block.
+  Use the pillars as brakes to stop each block on a switch. Stuck? Reset the room (R, or the menu).
+- **Rime Colossus** (4300 HP): the same three attack patterns as the Ashen Warden, but it throws ice rings from the start,
+  has more armor, and calls 4 helpers at 50% HP.
 
 ## The boss: Ashen Warden
 
@@ -248,8 +274,10 @@ A fire golem (2600 HP) in the Ember Throne. The door seals behind you until it f
 
 - **Armor** (yellow bar under its HP): normal hits never interrupt it, and skills can't stun it directly ("RESIST").
   Wear the armor down (heavy hits count more) to **BREAK** it and open a chain.
-- **Phase 2** at 50% HP (the white tick on the bar): faster, more eruption zones, a double ring, and 2 Ember Wisps join in.
+- **Guards**: two Bramble Slimes and an Ember Wisp fight alongside it. All of them must fall to open the doors.
+- **Phase 2** at 50% HP (the white tick on the bar): faster, more eruption zones, a double ring, and 2 Ember Wisps + 1 Bramble Slime join in.
 - Wiping during the fight sends you back to the Crystal Hall checkpoint (the boss heals; the intro is skipped).
+- Each boss's helpers, colors and title come from `boss: { ... }` on its entry in `src/data/enemies.ts`.
 - Tuning: patterns in `src/entities/enemies/Boss.ts` (`PATTERN`), stats in `src/data/enemies.ts` (`id: 'boss'`).
 
 ## Where things live
@@ -274,7 +302,8 @@ Rooms live in `src/data/stages.ts` as ASCII layouts. The full legend is at the t
 | `B` `_` | push block / switch | `1`-`4` `h` | crystals / order hint |
 | `x` | cracked wall (secret) | `%` `&` `@` | bush / bush with key / bush with star |
 | `$` `*` | coin / star | `C` `G` | checkpoint / goal portal |
-| `c` `w` `t` | enemies | | |
+| `c` `w` `t` `f` `i` `g` | enemies | `b` | brazier |
+| `K` `Q` | bosses | | |
 
 To connect rooms, leave a gap in the outer wall and list it in `exits` (e.g. `exits: { east: 'garden' }`).
 The target room needs a gap on the opposite side. All rows must be the same length.
@@ -286,6 +315,9 @@ The target room needs a gap on the opposite side. All rows must be the same leng
   (`chaseUpdate`, `onWindupStart/Update/End`, `onAttackStart/Update`), then add one line in `createEnemy.ts`.
 
 ## Adding a stage
+
+Stages can have a **theme** (`theme: 'frost'`): its tile colors, background and weather live in `src/data/themes.ts`.
+Puzzle options per room: `lock: 'braziers'` + `brazierTime`, and `iceBlocks: true` for sliding blocks.
 
 Add a new entry to `STAGES` in `src/data/stages.ts` (with `description` and `recommendedLevel`).
 It appears on Stage Select automatically. (Remove one name from `COMING_SOON` in `StageSelectScene.ts`.)

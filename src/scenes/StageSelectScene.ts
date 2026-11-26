@@ -8,7 +8,7 @@ import { Button, FONT } from '../ui/Panel';
 import type { StageSceneData } from './StageScene';
 
 /** Cards shown after the real stages, so players can see more is planned. */
-const COMING_SOON = ['Frostmere Caves', 'Skyroot Ruins'];
+const COMING_SOON = ['Skyroot Ruins'];
 
 /**
  * How hard a stage will feel, from your party's average level vs. the

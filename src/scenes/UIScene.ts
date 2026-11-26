@@ -146,6 +146,9 @@ export class UIScene extends Phaser.Scene {
       topRight.push(t);
     }
 
+    // A dark outline keeps these readable on any floor (e.g. bright snow).
+    for (const o of topRight) if (o instanceof Phaser.GameObjects.Text) o.setStroke('#1a1422', 3);
+
     // Fade groups: party (top-left), collectibles (top-right), actions (bottom-left).
     const actionObjects = this.children.list.filter(
       (o) => o instanceof Phaser.GameObjects.Text && (o as Phaser.GameObjects.Text).y > GAME_HEIGHT - 100 && (o as Phaser.GameObjects.Text).x < 380,
@@ -351,7 +354,7 @@ export class UIScene extends Phaser.Scene {
 
     const g = this.bars;
     // Card (see-through) + gold outline for the hero you control
-    g.fillStyle(0x000000, isLeader ? 0.5 : 0.3).fillRoundedRect(x, y, w, 30, 5);
+    g.fillStyle(0x000000, isLeader ? 0.55 : 0.4).fillRoundedRect(x, y, w, 30, 5);
     if (isLeader) g.lineStyle(1.5, 0xffd23f, 0.9).strokeRoundedRect(x, y, w, 30, 5);
     g.fillStyle(hero.def.color).fillRoundedRect(x + 5, y + 5, 12, 20, 3);
 

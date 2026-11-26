@@ -97,14 +97,18 @@ export class PushBlock extends Phaser.GameObjects.Image {
   }
 
   /**
-   * Try to slide one tile in (dx, dy). `canEnter` decides if the target tile is free.
+   * Try to move in (dx, dy). `canEnter` decides if a tile is free.
+   * Normally a block moves ONE tile. On ice (`maxSteps` > 1) it keeps sliding
+   * until the next tile is blocked (or maxSteps is reached).
    * Returns true if the block moved.
    */
-  push(dx: number, dy: number, canEnter: (tx: number, ty: number) => boolean, onDone: () => void): boolean {
+  push(dx: number, dy: number, canEnter: (tx: number, ty: number) => boolean, onDone: () => void, maxSteps = 1): boolean {
     if (this.moving) return false;
-    const nx = this.tx + dx;
-    const ny = this.ty + dy;
-    if (!canEnter(nx, ny)) {
+    let steps = 0;
+    while (steps < maxSteps && canEnter(this.tx + dx * (steps + 1), this.ty + dy * (steps + 1))) steps++;
+    const nx = this.tx + dx * steps;
+    const ny = this.ty + dy * steps;
+    if (steps === 0) {
       // Little shake = "it won't budge".
       this.scene.tweens.add({ targets: this, x: this.x + dx * 2, y: this.y + dy * 2, duration: 40, yoyo: true });
       return false;
@@ -117,8 +121,8 @@ export class PushBlock extends Phaser.GameObjects.Image {
       targets: this,
       x: nx * TILE + TILE / 2,
       y: ny * TILE + TILE / 2,
-      duration: 180,
-      ease: 'Quad.easeOut',
+      duration: 180 + (steps - 1) * 70, // longer slides take longer
+      ease: steps > 1 ? 'Sine.easeOut' : 'Quad.easeOut',
       // Static bodies don't follow their sprite automatically: sync each frame.
       onUpdate: () => body.updateFromGameObject(),
       onComplete: () => {
@@ -327,6 +331,91 @@ export class Checkpoint extends Phaser.GameObjects.Image {
       ring(this.scene, this.x, this.y + 12, 60, 0x7dff8a);
       popText(this.scene, this.x, this.y - 30, 'Checkpoint!', '#7dff8a', 18);
     }
+  }
+}
+
+/**
+ * BRAZIER (puzzle): hit it to light it. It only burns for a few seconds, so
+ * the room's puzzle is to have EVERY brazier burning at the same time.
+ * Arrows and bolts light it too, which helps with far-apart braziers.
+ * When the puzzle is solved, the room tells all braziers to stay lit forever.
+ */
+export class Brazier extends Phaser.GameObjects.Image implements Hittable {
+  hitRadius = 18;
+  /** Seconds of fire left (0 = out). */
+  burn = 0;
+  /** Once the puzzle is solved, the fire never goes out. */
+  permanent = false;
+  private readonly flame: Phaser.GameObjects.Image;
+  private readonly timerRing: Phaser.GameObjects.Graphics;
+
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    /** How long one lighting lasts (s). */
+    private readonly burnTime: number,
+    private readonly onLit: (b: Brazier) => void,
+  ) {
+    super(scene, x, y - 6, 'brazier');
+    this.setDepth(depthAt(y));
+    scene.add.existing(this);
+    this.flame = scene.add.image(x, y - 22, 'flame').setOrigin(0.5, 0.9).setDepth(depthAt(y) + 1).setVisible(false);
+    this.timerRing = scene.add.graphics().setDepth(depthAt(y) + 2);
+  }
+
+  get lit(): boolean {
+    return this.permanent || this.burn > 0;
+  }
+
+  onHit(): void {
+    if (this.permanent) return;
+    const wasOut = this.burn <= 0;
+    this.burn = this.burnTime; // hitting a lit brazier refreshes its fire
+    this.flame.setVisible(true);
+    if (wasOut) {
+      ring(this.scene, this.x, this.y - 14, 30, 0xffb347);
+      hitSpark(this.scene, this.x, this.y - 18, 0xffb347, 8);
+    }
+    this.onLit(this);
+  }
+
+  /** Burn down the fire; draw the "time left" ring and a flickering flame. */
+  tick(dt: number): void {
+    const g = this.timerRing.clear();
+    if (this.permanent) {
+      this.flicker(1.15);
+      return;
+    }
+    if (this.burn <= 0) return;
+    this.burn -= dt;
+    if (this.burn <= 0) {
+      this.burn = 0;
+      this.flame.setVisible(false);
+      poof(this.scene, this.x, this.y - 22, 0x8a8aa0); // puff of smoke
+      return;
+    }
+    const left = this.burn / this.burnTime;
+    this.flicker(0.6 + left * 0.5); // the flame shrinks as it burns out
+    // A ring around the base that empties as the fire runs out (turns red near the end).
+    const start = -Math.PI / 2;
+    g.lineStyle(3, left < 0.3 ? 0xff5a5a : 0xffd23f, 0.9);
+    g.beginPath();
+    g.arc(this.x, this.y + 4, 16, start, start + Math.PI * 2 * left, false);
+    g.strokePath();
+  }
+
+  /** Solved: burn forever. */
+  setPermanent(): void {
+    this.permanent = true;
+    this.burn = this.burnTime;
+    this.flame.setVisible(true);
+    this.timerRing.clear();
+  }
+
+  private flicker(size: number): void {
+    const t = this.scene.time.now * 0.02 + this.x;
+    this.flame.setScale(size * (1 + Math.sin(t) * 0.08), size * (1 + Math.cos(t * 1.3) * 0.12));
   }
 }
 
