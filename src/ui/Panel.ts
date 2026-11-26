@@ -97,11 +97,9 @@ export abstract class Panel {
     bg.lineStyle(2, 0xffcf5a, 0.9).strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
     const titleText = scene.add
       .text(-width / 2 + 20, -height / 2 + 14, title, { fontFamily: FONT, fontSize: '20px', fontStyle: 'bold', color: COLORS.uiAccent });
-    const hint = scene.add
-      .text(width / 2 - 16, height / 2 - 12, 'Esc: close', { fontFamily: FONT, fontSize: '11px', color: COLORS.uiText })
-      .setOrigin(1, 1)
-      .setAlpha(0.6);
-    this.root.add([shade, bg, titleText, hint]);
+    // Close button (bottom-right). Esc also closes.
+    const close = new Button(scene, width / 2 - 62, height / 2 - 26, 'Close (Esc)', () => this.close(), 100, 28, 0xc9bde0);
+    this.root.add([shade, bg, titleText, close]);
   }
 
   open(): void {

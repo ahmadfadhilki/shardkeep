@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, GAME_HEIGHT, GAME_WIDTH } from '../config';
+import { COLORS, GAME_HEIGHT, GAME_WIDTH, IS_TOUCH } from '../config';
 import { getSave, hasSave, newGame } from '../systems/SaveData';
 
 /**
@@ -83,6 +83,7 @@ export class TitleScene extends Phaser.Scene {
     const start = () => {
       if (leaving) return;
       leaving = true;
+      if (IS_TOUCH) this.goFullscreen();
       this.cameras.main.fadeOut(250, 0, 0, 0);
       this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Hub'));
     };
@@ -112,5 +113,25 @@ export class TitleScene extends Phaser.Scene {
     kb.on('keydown-ENTER', () => options[selected].action());
     kb.on('keydown-SPACE', () => options[selected].action());
     refresh();
+    if (IS_TOUCH) {
+      this.add.text(cx, GAME_HEIGHT - 24, 'Touch controls on. Best played sideways, full screen.', { fontFamily: 'monospace', fontSize: '13px', color: COLORS.uiText })
+        .setOrigin(0.5).setAlpha(0.7);
+    }
+  }
+
+  /**
+   * Phones: hide the browser bars and keep the screen sideways.
+   * Not every browser allows this (iPhone Safari doesn't), so failures are ignored.
+   */
+  private goFullscreen(): void {
+    try {
+      // Ask the browser directly so a "no" is caught instead of becoming an error.
+      // (Phaser's scale manager notices the change and resizes the game by itself.)
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => {});
+      const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+      orientation.lock?.('landscape').catch(() => {});
+    } catch {
+      // ignore: the game works without fullscreen
+    }
   }
 }

@@ -14,6 +14,9 @@ import { heroLevel, heroSave } from './SaveData';
  *  - Q / 1 / 2 / 3 switches which hero is the leader.
  *  - If the leader falls, control jumps to the next living hero.
  */
+/** Touch auto-aim only locks on to enemies this close (px). */
+const AUTO_AIM_RANGE = 320;
+
 export class PartyManager {
   readonly heroes: Hero[] = [];
   private readonly ai = new Map<Hero, CompanionAI>();
@@ -32,7 +35,7 @@ export class PartyManager {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    combat: CombatSystem,
+    private readonly combat: CombatSystem,
     x: number,
     y: number,
     heroIds: string[],
@@ -116,8 +119,9 @@ export class PartyManager {
     const leader = this.leader;
     const pi = this.playerIntent;
     pi.move.copy(input.move);
+    if (input.autoAim) this.autoAim(leader, input);
     // Aim from the hero's body (not feet) toward the mouse.
-    pi.aim.set(input.aimWorld.x - leader.x, input.aimWorld.y - (leader.y - 12)).normalize();
+    else pi.aim.set(input.aimWorld.x - leader.x, input.aimWorld.y - (leader.y - 12)).normalize();
     pi.attack = input.attack;
     pi.attackHeld = input.attackHeld;
     pi.skill = input.skill;
@@ -128,6 +132,26 @@ export class PartyManager {
       const intent = hero === leader ? pi : this.ai.get(hero)!.think(dt, leader);
       hero.tick(dt, intent);
     }
+  }
+
+  /**
+   * Touch play has no mouse, so we aim for the player: at the nearest enemy
+   * in range, otherwise the way you're walking, otherwise keep facing the same way.
+   */
+  private autoAim(leader: Hero, input: PlayerInput): void {
+    const aim = this.playerIntent.aim;
+    let best: { x: number; y: number } | null = null;
+    let bestDist = AUTO_AIM_RANGE;
+    for (const e of this.combat.opponentsOf(leader)) {
+      const d = Phaser.Math.Distance.Between(leader.x, leader.y, e.x, e.y);
+      if (d < bestDist) {
+        best = e;
+        bestDist = d;
+      }
+    }
+    if (best) aim.set(best.x - leader.x, best.y - leader.y).normalize();
+    else if (input.move.lengthSq() > 0) aim.copy(input.move);
+    else aim.set(0, 0); // zero = keep the current facing
   }
 
   /** Update `controlled` flags and point the camera at the leader. */

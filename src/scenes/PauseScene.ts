@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { COLORS, GAME_HEIGHT, GAME_WIDTH } from '../config';
+import { COLORS, GAME_HEIGHT, GAME_WIDTH, IS_TOUCH } from '../config';
 import { isMuted, Sfx, toggleMute } from '../systems/Sfx';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Button, FONT, type PanelKey } from '../ui/Panel';
+import type { StageScene } from './StageScene';
 
 export interface PauseData {
   stageId: string;
@@ -22,6 +23,7 @@ export class PauseScene extends Phaser.Scene {
   private buttons: Button[] = [];
   private selected = 0;
   private confirm!: ConfirmDialog;
+  private soundButton!: Button;
 
   constructor() {
     super('Pause');
@@ -36,20 +38,22 @@ export class PauseScene extends Phaser.Scene {
   create(): void {
     this.input.setDefaultCursor('default'); // the stage hides the cursor; menus need it
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x0a0710, 0.7);
-    this.add.text(GAME_WIDTH / 2, 120, 'PAUSED', { fontFamily: FONT, fontSize: '40px', fontStyle: 'bold', color: COLORS.uiAccent }).setOrigin(0.5);
+    this.add.text(GAME_WIDTH / 2, 100, 'PAUSED', { fontFamily: FONT, fontSize: '40px', fontStyle: 'bold', color: COLORS.uiAccent }).setOrigin(0.5);
 
     const warn = 'Coins picked up in this run will be lost.\n(XP you earned is already saved.)';
     const options: [string, () => void][] = [
       ['Resume', () => this.resume()],
+      ['Reset room (if stuck)', () => this.resetRoom()],
       ['Restart stage', () => this.confirm.ask(`Restart the stage?\n${warn}`, () => this.restart())],
       ['Return to town', () => this.confirm.ask(`Return to town?\n${warn}`, () => this.quit())],
       [this.soundLabel(), () => this.toggleSound()],
     ];
     options.forEach(([label, action], i) => {
-      const b = new Button(this, GAME_WIDTH / 2, 210 + i * 52, label, () => { Sfx.play('uiConfirm'); action(); }, 260, 38);
+      const b = new Button(this, GAME_WIDTH / 2, 175 + i * 52, label, () => { Sfx.play('uiConfirm'); action(); }, 260, 38);
       b.on('pointerover', () => this.focus(i));
       this.buttons.push(b);
     });
+    this.soundButton = this.buttons[this.buttons.length - 1];
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 40, 'W/S: choose    E/Enter: select    Esc: resume', { fontFamily: FONT, fontSize: '12px', color: COLORS.uiText })
       .setOrigin(0.5).setAlpha(0.7);
     this.confirm = new ConfirmDialog(this);
@@ -70,7 +74,7 @@ export class PauseScene extends Phaser.Scene {
     kb.on('keydown-SPACE', () => press('confirm'));
     kb.on('keydown-ESC', () => press('back'));
     // M is handled globally (main.ts); just refresh the label when it changes.
-    kb.on('keydown-M', () => this.time.delayedCall(10, () => this.buttons[3].setText(this.soundLabel())));
+    kb.on('keydown-M', () => this.time.delayedCall(10, () => this.soundButton.setText(this.soundLabel())));
   }
 
   private onKey(key: PanelKey): void {
@@ -88,10 +92,16 @@ export class PauseScene extends Phaser.Scene {
   }
 
   private resume(): void {
-    this.input.setDefaultCursor('none');
+    this.input.setDefaultCursor(IS_TOUCH ? 'default' : 'none');
     this.scene.resume('UI');
     this.scene.resume('Stage');
     this.scene.stop();
+  }
+
+  /** Same as R on a keyboard: re-enter this room (puts push blocks back). */
+  private resetRoom(): void {
+    this.resume();
+    (this.scene.get('Stage') as StageScene).resetRoom();
   }
 
   private restart(): void {
@@ -111,6 +121,6 @@ export class PauseScene extends Phaser.Scene {
 
   private toggleSound(): void {
     toggleMute();
-    this.buttons[3].setText(this.soundLabel());
+    this.soundButton.setText(this.soundLabel());
   }
 }

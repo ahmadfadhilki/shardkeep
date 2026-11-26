@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { COLORS, GAME_HEIGHT } from '../config';
+import { COLORS, GAME_HEIGHT, GAME_WIDTH, IS_TOUCH } from '../config';
+import { stageTouch, TouchControls } from '../ui/TouchControls';
 import type { StageScene } from './StageScene';
 import type { Hero } from '../entities/Hero';
 import { STARS_PER_STAGE } from '../systems/StageRun';
@@ -47,6 +48,8 @@ export class UIScene extends Phaser.Scene {
    */
   private fadeGroups: { rect: Phaser.Geom.Rectangle; objects: { setAlpha(a: number): unknown }[]; alpha: number }[] = [];
   private helpText!: Phaser.GameObjects.Text;
+  /** On-screen joystick + buttons (phones only, null on desktop). */
+  private touch: TouchControls | null = null;
 
   constructor() {
     super('UI');
@@ -81,7 +84,9 @@ export class UIScene extends Phaser.Scene {
 
     // Controls reminder: shown for a few seconds, then it fades away to keep the view clear.
     this.helpText = this.add
-      .text(this.scale.width / 2, GAME_HEIGHT - 16, 'Q / 1-2-3: switch hero    Z / X: potions    R: reset room    Esc: pause', {
+      .text(this.scale.width / 2, IS_TOUCH ? 96 : GAME_HEIGHT - 16, IS_TOUCH
+        ? 'Left thumb: move    Hold ATK to combo    Tap a hero (top-left) to switch'
+        : 'Q / 1-2-3: switch hero    Z / X: potions    R: reset room    Esc: pause', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: COLORS.uiText,
@@ -100,7 +105,8 @@ export class UIScene extends Phaser.Scene {
     this.bossStatus = this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffd23f' }).setOrigin(1, 0);
 
     // Collectibles row (top-right): coins, stars, key, time.
-    const rx = this.scale.width - 18;
+    // (On phones the pause button sits in the top-right corner, so the row moves left.)
+    const rx = this.scale.width - (IS_TOUCH ? 62 : 18);
     const topRight: { setAlpha(a: number): unknown }[] = [];
     topRight.push(this.add.image(rx - 230, 40, 'coin'));
     this.coinText = this.add.text(rx - 218, 32, '', { fontFamily: 'monospace', fontSize: '14px', color: '#ffd23f' });
@@ -141,7 +147,8 @@ export class UIScene extends Phaser.Scene {
     );
 
     // Chain prompt (bottom-center), hidden until there is an opportunity.
-    this.chainPanel = this.add.container(this.scale.width / 2, GAME_HEIGHT - 70).setVisible(false);
+    // On phones the bottom of the screen belongs to your thumbs, so the prompt goes near the top.
+    this.chainPanel = this.add.container(this.scale.width / 2, IS_TOUCH ? 150 : GAME_HEIGHT - 70).setVisible(false);
     const bg = this.add.graphics();
     bg.fillStyle(0x2a0f2e, 0.92).fillRoundedRect(-170, -26, 340, 52, 10);
     bg.lineStyle(2, 0xff7af0, 1).strokeRoundedRect(-170, -26, 340, 52, 10);
@@ -165,6 +172,72 @@ export class UIScene extends Phaser.Scene {
         strokeThickness: 5,
       })
       .setOrigin(1, 0.5);
+
+    if (IS_TOUCH) this.createTouchControls();
+  }
+
+  /**
+   * Phones: joystick on the left, action buttons on the right (like most mobile
+   * action games). Desktop-only HUD bits (mouse crosshair, key labels) are hidden.
+   */
+  private createTouchControls(): void {
+    const W = GAME_WIDTH;
+    const H = GAME_HEIGHT;
+    this.touch = new TouchControls(
+      this,
+      [
+        { id: 'attack', x: W - 92, y: H - 92, r: 52, label: 'ATK', color: 0xffffff },
+        { id: 'skill', x: W - 200, y: H - 62, r: 38, label: 'SKILL', color: 0xffb347 },
+        { id: 'dodge', x: W - 74, y: H - 210, r: 34, label: 'ROLL', color: 0x9fd8ff },
+        { id: 'chain', x: W - 196, y: H - 176, r: 36, label: 'CHAIN', color: 0xff7af0 },
+        { id: 'swap', x: W - 300, y: H - 40, r: 26, label: 'SWAP', color: 0xc9bde0 },
+        { id: 'potionHp', x: W - 372, y: H - 40, r: 24, label: 'HP', color: 0xff5a7a },
+        { id: 'potionMp', x: W - 436, y: H - 40, r: 24, label: 'MP', color: 0x5a9aff },
+        { id: 'pause', x: W - 28, y: 28, r: 22, label: 'II', color: 0xffffff },
+      ],
+      // Joystick zone: the left part of the screen, below the party rows.
+      new Phaser.Geom.Rectangle(0, 120, W * 0.45, H - 120),
+    );
+    stageTouch.current = this.touch;
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (stageTouch.current === this.touch) stageTouch.current = null;
+      this.touch = null;
+    });
+
+    // Tap a party row to take control of that hero.
+    for (let i = 0; i < 3; i++) {
+      this.add.zone(10, 8 + i * 34, 176, 30).setOrigin(0).setInteractive().on('pointerdown', () => this.touch?.tap(`hero${i}`));
+    }
+
+    // Hide the desktop-only parts.
+    this.crosshair.setVisible(false);
+    this.cooldowns.setVisible(false);
+    for (const o of this.children.list) {
+      const t = o as Phaser.GameObjects.Text;
+      if (t instanceof Phaser.GameObjects.Text && t.y > GAME_HEIGHT - 100 && t.x < 380) t.setVisible(false); // key labels
+      if (t instanceof Phaser.GameObjects.Text && t.y === 12) t.setVisible(false); // element wheel (no room)
+    }
+    // The chain prompt can be tapped too.
+    this.chainPanel.setSize(340, 52).setInteractive().on('pointerdown', () => this.touch?.tap('chain'));
+  }
+
+  /** Show cooldowns, mana and counts on the touch buttons. */
+  private updateTouch(stage: StageScene): void {
+    const t = this.touch;
+    if (!t) return;
+    const leader = stage.party.leader;
+    const potions = getSave().potions;
+    t.setButton('skill', {
+      cooldown: leader.skillCooldown / leader.skillCooldownMax,
+      dim: leader.mana < leader.skillManaCost,
+      sub: leader.skillCooldown > 0 ? leader.skillCooldown.toFixed(1) : '',
+    });
+    t.setButton('dodge', { cooldown: leader.dodgeCooldown / leader.dodgeCooldownMax });
+    t.setButton('chain', { visible: !!stage.chain.opportunity });
+    t.setButton('swap', { visible: stage.party.heroes.length > 1 });
+    t.setButton('potionHp', { dim: potions.health <= 0, sub: `x${potions.health}` });
+    t.setButton('potionMp', { dim: potions.mana <= 0, sub: `x${potions.mana}` });
+    t.redraw();
   }
 
   update(_time: number, delta: number): void {
@@ -225,6 +298,7 @@ export class UIScene extends Phaser.Scene {
     this.chainCount.setText(count >= 1 ? `CHAIN x${count}` : '');
 
     this.updateFades(stage, delta);
+    this.updateTouch(stage);
   }
 
   /**

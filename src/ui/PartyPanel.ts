@@ -49,9 +49,9 @@ export class PartyPanel extends Panel {
       this.root.add(box);
       this.root.bringToTop(text);
       this.root.bringToTop(badge);
-      // Mouse: hover selects, click adds/removes.
+      // Click / tap a card to see that hero; the buttons on the right add, remove, or make leader.
       const zone = scene.add.zone(x + CARD_W / 2, y + CARD_H / 2, CARD_W, CARD_H).setInteractive({ useHandCursor: true });
-      zone.on('pointerover', () => this.select(i)).on('pointerdown', () => { this.select(i); this.toggle(); });
+      zone.on('pointerdown', () => this.select(i));
       this.root.add(zone);
       box.setData('x', x).setData('y', y);
       this.cards.push({ box, text, badge });
@@ -66,7 +66,7 @@ export class PartyPanel extends Panel {
     this.root.add([this.toggleButton, this.leaderButton]);
 
     this.partyLine = this.text(left, this.height / 2 - 66, '', 14, COLORS.uiAccent);
-    this.message = this.text(left, this.height / 2 - 40, '', 12, '#c9bde0');
+    this.message = this.text(left, this.height / 2 - 40, '', 12, '#c9bde0').setWordWrapWidth(this.width - 180);
     this.text(left, top + 2 * (CARD_H + 10) + 4, 'E: add/remove   Q: make leader\nFewer heroes = a harder (and braver) run!', 11, '#c9bde0').setAlpha(0.8);
   }
 

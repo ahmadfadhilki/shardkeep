@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, GAME_HEIGHT, GAME_WIDTH } from '../config';
+import { COLORS, GAME_HEIGHT, GAME_WIDTH, IS_TOUCH } from '../config';
 import { getHeroDef } from '../data/heroes';
 import { getStageDef } from '../data/stages';
 import { SKILLS } from '../data/skills';
@@ -160,7 +160,7 @@ export class ResultsScene extends Phaser.Scene {
   private showContinue(): void {
     if (this.canLeave) return;
     this.canLeave = true;
-    const t = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 40, 'Press ENTER to return to town', { fontFamily: FONT, fontSize: '18px', color: COLORS.uiText })
+    const t = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 40, IS_TOUCH ? 'Tap to return to town' : 'Press ENTER (or click) to return to town', { fontFamily: FONT, fontSize: '18px', color: COLORS.uiText })
       .setOrigin(0.5);
     this.tweens.add({ targets: t, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
   }

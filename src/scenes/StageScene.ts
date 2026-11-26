@@ -171,7 +171,7 @@ export class StageScene extends Phaser.Scene {
     if (this.boss) this.bossIntro(this.boss);
 
     // R: reset this room (re-enter it). Handy when a block gets stuck.
-    this.input.keyboard!.on('keydown-R', () => this.changeRoom(this.roomDef.id, this.entry ?? 'start'));
+    this.input.keyboard!.on('keydown-R', () => this.resetRoom());
   }
 
   update(_time: number, deltaMs: number): void {
@@ -226,6 +226,11 @@ export class StageScene extends Phaser.Scene {
   // -------------------------------------------------------------------------
   // Moving between rooms
   // -------------------------------------------------------------------------
+
+  /** Re-enter the current room (R key, or "Reset room" in the pause menu). */
+  resetRoom(): void {
+    this.changeRoom(this.roomDef.id, this.entry ?? 'start');
+  }
 
   /** Esc: freeze this scene and the HUD, and show the pause menu on top. */
   private openPause(): void {

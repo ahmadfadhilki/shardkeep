@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { COLORS, DEPTH, GAME_HEIGHT, GAME_WIDTH, TILE } from '../config';
+import { COLORS, DEPTH, GAME_HEIGHT, GAME_WIDTH, IS_TOUCH, TILE } from '../config';
+import { TouchControls } from '../ui/TouchControls';
 import { HUB_NPCS, HUB_ROOM, type NpcDef } from '../data/hub';
 import { buildRoom, tileCenter } from '../systems/RoomBuilder';
 import { getSave, saveGame, getParty } from '../systems/SaveData';
@@ -47,6 +48,8 @@ export class HubScene extends Phaser.Scene {
   private coinText!: Phaser.GameObjects.Text;
   private dialogue!: DialogueBox;
   private layer!: Phaser.Tilemaps.TilemapLayer;
+  /** Phones only: joystick + TALK / PARTY buttons. */
+  private touch: TouchControls | null = null;
   private leaving = false;
   private walkTime = 0;
 
@@ -101,7 +104,7 @@ export class HubScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(DEPTH.ui - 1);
     this.coinText = this.add.text(16, 40, '', { fontFamily: FONT, fontSize: '14px', color: '#ffd23f' })
       .setScrollFactor(0).setDepth(DEPTH.ui - 1);
-    this.add.text(GAME_WIDTH - 16, GAME_HEIGHT - 14, 'WASD: walk    E: talk    Tab: party setup    M: sound on/off', { fontFamily: FONT, fontSize: '12px', color: COLORS.uiText })
+    this.add.text(GAME_WIDTH - 16, GAME_HEIGHT - 14, IS_TOUCH ? 'Left thumb: walk    TALK: speak    PARTY: party setup' : 'WASD: walk    E: talk    Tab: party setup    M: sound on/off', { fontFamily: FONT, fontSize: '12px', color: COLORS.uiText })
       .setOrigin(1, 1).setScrollFactor(0).setDepth(DEPTH.ui - 1).setAlpha(0.7);
 
     // --- Panels ---
@@ -110,6 +113,16 @@ export class HubScene extends Phaser.Scene {
     for (const p of [this.shop, this.partyPanel]) p.onClose = () => (this.panel = null);
     this.partyPanel.onPartyChanged = () => this.buildParty(this.leader.x, this.leader.y);
     this.dialogue = new DialogueBox(this);
+    this.touch = IS_TOUCH
+      ? new TouchControls(
+          this,
+          [
+            { id: 'talk', x: GAME_WIDTH - 92, y: GAME_HEIGHT - 100, r: 48, label: 'TALK', color: 0xffcf5a },
+            { id: 'party', x: GAME_WIDTH - 70, y: GAME_HEIGHT - 220, r: 30, label: 'PARTY', color: 0xc9bde0 },
+          ],
+          new Phaser.Geom.Rectangle(0, 70, GAME_WIDTH * 0.5, GAME_HEIGHT - 70),
+        )
+      : null;
 
     // --- Keys ---
     const kb = this.input.keyboard!;
@@ -147,6 +160,7 @@ export class HubScene extends Phaser.Scene {
       busy ? 0 : (k.D.isDown || k.RIGHT.isDown ? 1 : 0) - (k.A.isDown || k.LEFT.isDown ? 1 : 0),
       busy ? 0 : (k.S.isDown || k.DOWN.isDown ? 1 : 0) - (k.W.isDown || k.UP.isDown ? 1 : 0),
     ).normalize();
+    if (this.touch) this.updateTouch(dir, busy);
     this.leader.setVelocity(dir.x * WALK_SPEED, dir.y * WALK_SPEED);
     if (dir.x !== 0) this.leader.setFlipX(dir.x < 0);
 
@@ -179,6 +193,19 @@ export class HubScene extends Phaser.Scene {
     this.updatePrompt();
   }
 
+  /** Phones: joystick walks; TALK talks; PARTY opens party setup. Hidden while a window is open. */
+  private updateTouch(dir: Phaser.Math.Vector2, busy: boolean): void {
+    const t = this.touch!;
+    t.setEnabled(!this.panel && !this.leaving);
+    if (!busy && dir.lengthSq() === 0) dir.copy(t.move);
+    if (t.took('talk')) this.onPress('confirm');
+    if (t.took('party') && !this.panel && !this.dialogue.isOpen) this.openPanel(this.partyPanel);
+    t.consume();
+    t.setButton('talk', { visible: !!this.nearNpc && !this.dialogue.isOpen });
+    t.setButton('party', { visible: !this.dialogue.isOpen });
+    t.redraw();
+  }
+
   /** Show "[E] action" over the closest NPC in range. */
   private updatePrompt(): void {
     let best: Npc | null = null;
@@ -193,7 +220,7 @@ export class HubScene extends Phaser.Scene {
     this.nearNpc = best;
     const show = !!best && !this.panel && !this.leaving && !this.dialogue.isOpen;
     this.prompt.setVisible(show);
-    if (show && best) this.prompt.setText(`[E] ${best.def.action}`).setPosition(best.sprite.x, best.sprite.y + 14);
+    if (show && best) this.prompt.setText(IS_TOUCH ? best.def.action : `[E] ${best.def.action}`).setPosition(best.sprite.x, best.sprite.y + 14);
   }
 
   private onPress(key: PanelKey): void {

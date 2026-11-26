@@ -35,3 +35,11 @@ export const DEPTH = {
   effects: 100000,
   ui: 200000,
 } as const;
+
+/**
+ * True on phones / tablets (a finger is the main pointer). The game then shows
+ * on-screen touch controls instead of mouse/keyboard hints.
+ * Add ?touch to the URL to try the touch controls on a computer (click = tap).
+ */
+export const IS_TOUCH: boolean =
+  new URLSearchParams(window.location.search).has('touch') || window.matchMedia('(pointer: coarse)').matches;

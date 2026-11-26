@@ -4,7 +4,7 @@ import { getHeroDef } from '../data/heroes';
 import { STAGES } from '../data/stages';
 import { heroLevel, stageSave, getParty } from '../systems/SaveData';
 import { STARS_PER_STAGE } from '../systems/StageRun';
-import { FONT } from '../ui/Panel';
+import { Button, FONT } from '../ui/Panel';
 import type { StageSceneData } from './StageScene';
 
 /** Cards shown after the real stages, so players can see more is planned. */
@@ -78,7 +78,8 @@ export class StageSelectScene extends Phaser.Scene {
       this.makeCard(startX + i * (cardW + gap), name, ['', 'Coming soon...'], null, false, false, i);
     });
 
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 30, 'A/D: choose    Enter: start    Esc: back to town', { fontFamily: FONT, fontSize: '13px', color: COLORS.uiText })
+    new Button(this, 70, 40, '< Town', () => this.goTo('Hub'), 100, 32, 0xc9bde0);
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 30, 'Tap / click a stage to start.   Keys: A/D choose, Enter start, Esc back', { fontFamily: FONT, fontSize: '13px', color: COLORS.uiText })
       .setOrigin(0.5).setAlpha(0.7);
 
     const kb = this.input.keyboard!;

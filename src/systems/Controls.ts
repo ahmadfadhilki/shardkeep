@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { IS_TOUCH } from '../config';
+import { stageTouch } from '../ui/TouchControls';
 
 /**
  * Wraps keyboard + mouse so the rest of the game never deals with raw input.
@@ -12,6 +14,10 @@ import Phaser from 'phaser';
  *   Switch hero ..... Q (next) or 1 / 2 / 3
  *   Potions ......... Z (health) / X (mana)
  *   Pause ........... Esc
+ *
+ * On phones (IS_TOUCH) the same PlayerInput is filled from the on-screen
+ * joystick and buttons instead (see ui/TouchControls.ts), and attacks aim
+ * automatically (autoAim), because there is no mouse to aim with.
  */
 
 /** Everything the player asked for this frame. */
@@ -33,6 +39,8 @@ export interface PlayerInput {
   potionHealth: boolean;
   potionMana: boolean;
   pause: boolean;
+  /** No mouse to aim with (touch): aim at the nearest enemy instead. */
+  autoAim: boolean;
 }
 
 export class Controls {
@@ -55,6 +63,7 @@ export class Controls {
     potionHealth: false,
     potionMana: false,
     pause: false,
+    autoAim: false,
   };
 
   constructor(scene: Phaser.Scene) {
@@ -84,6 +93,7 @@ export class Controls {
     // Stop the browser's right-click menu from popping up over the game.
     scene.input.mouse?.disableContextMenu();
     scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (IS_TOUCH) return; // touches are handled by the on-screen controls
       if (p.button === 0) this.leftClicked = true;
       else if (p.button === 2) this.rightClicked = true;
     });
@@ -131,9 +141,33 @@ export class Controls {
     i.potionMana = this.took('potionMp');
     i.pause = this.took('pause');
 
+    i.autoAim = false;
+    const touch = IS_TOUCH ? stageTouch.current : null;
+    if (touch) this.mergeTouch(touch);
+
     this.leftClicked = false;
     this.rightClicked = false;
     this.pressed.clear();
     return i;
+  }
+
+  /** Add the on-screen joystick and buttons to this frame's input. */
+  private mergeTouch(t: NonNullable<typeof stageTouch.current>): void {
+    const i = this.input;
+    if (i.move.lengthSq() === 0) i.move.copy(t.move); // keyboard still wins if one is plugged in
+    i.attack = t.took('attack');
+    i.attackHeld = t.isHeld('attack');
+    i.skill ||= t.took('skill');
+    i.dodge ||= t.took('dodge');
+    i.chain ||= t.took('chain');
+    i.switchNext ||= t.took('swap');
+    i.potionHealth ||= t.took('potionHp');
+    i.potionMana ||= t.took('potionMp');
+    i.pause ||= t.took('pause');
+    if (t.took('hero0')) i.select = 0;
+    if (t.took('hero1')) i.select = 1;
+    if (t.took('hero2')) i.select = 2;
+    i.autoAim = true;
+    t.consume();
   }
 }

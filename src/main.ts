@@ -31,6 +31,8 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT, // scale to the window but keep the aspect ratio
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
+  // Several fingers at once on phones: joystick + attack + skill.
+  input: { activePointers: 4 },
   physics: {
     default: 'arcade',
     arcade: { gravity: { x: 0, y: 0 }, debug }, // top-down = no gravity

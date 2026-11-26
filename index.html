@@ -2,16 +2,54 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- No pinch-zoom: on phones, two-finger touches are game controls, not zoom gestures. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#120e18" />
     <title>Shardkeep</title>
     <style>
-      html, body { margin: 0; height: 100%; background: #120e18; overflow: hidden; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: #120e18;
+        overflow: hidden;
+        /* Stop the browser from scrolling, bouncing, or selecting text while you play. */
+        overscroll-behavior: none;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+      }
       #game { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
       canvas { image-rendering: pixelated; }
+
+      /* Phones held upright: ask the player to turn the phone sideways. */
+      #rotate {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        background: #120e18;
+        color: #f4ecff;
+        font: bold 20px monospace;
+        text-align: center;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 16px;
+      }
+      #rotate .icon { font-size: 56px; color: #ffcf5a; }
+      @media (orientation: portrait) and (pointer: coarse) {
+        #rotate { display: flex; }
+      }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <div id="rotate"><div class="icon">&#x21bb;</div>Turn your phone sideways<br />to play Shardkeep</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

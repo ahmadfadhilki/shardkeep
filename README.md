@@ -4,6 +4,11 @@ A small top-down action RPG for the browser, built with **Phaser 3 + TypeScript 
 Lead a party of up to three heroes through a puzzle dungeon, chain your skills together,
 and take down the Ashen Warden. Built step by step as a learning project.
 
+### ▶ [Play online: shardkeep-game.netlify.app](https://shardkeep-game.netlify.app)
+
+Works in desktop browsers (keyboard + mouse) and on phones and tablets (touch controls, landscape).
+Your progress is saved in your own browser.
+
 ## Features
 
 - **Real-time combat:** 8-direction movement, 3-hit combos, weapon skills, dodge rolls with i-frames,
@@ -73,6 +78,24 @@ or upload the `dist/` folder to any static host (GitHub Pages, Netlify, itch.io.
 | R | Reset the current room (use it if a push block gets stuck) |
 | Esc | Pause menu: Resume / Restart stage / Return to town / Sound |
 | M | Sound on/off (anywhere, saved) |
+
+### On phones and tablets (touch)
+
+Hold the phone sideways (the game asks you to if it's upright). It goes full screen on the first tap where the browser allows it.
+
+| Touch | Action |
+|---|---|
+| Left thumb, anywhere on the left side | Joystick: move |
+| **ATK** (big button) | Attack; hold it for the 3-hit combo. Attacks aim at the nearest enemy automatically |
+| **SKILL** | Weapon skill (shows the cooldown seconds; greyed out without enough mana) |
+| **ROLL** | Dodge roll |
+| **CHAIN** (appears when possible) | Chain skill. Tapping the pink chain prompt works too |
+| Tap a hero's row (top-left) / **SWAP** | Switch hero |
+| **HP / MP** | Potions |
+| **II** (top-right) | Pause menu (also has "Reset room") |
+| In town | Joystick to walk, **TALK** near someone, **PARTY** for party setup; tap menus and buttons |
+
+To try the touch controls on a computer, add `?touch` to the URL (http://localhost:5173/?touch); mouse clicks then act as taps.
 
 **In town:** WASD to walk, **E** (or Enter) to talk / continue dialogue, **Tab** for party setup, **Esc** to close a window.
 In menus: W/S and A/D move, E/Enter selects, or just use the mouse.
